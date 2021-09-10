@@ -8,7 +8,12 @@ from metadrive.policy.manual_control_policy import ManualControlPolicy
 from metadrive.utils.math_utils import not_zero, wrap_to_pi, point_distance
 from metadrive.utils.scene_utils import is_same_lane_index, is_following_lane_index
 
-
+from metadrive.engine.core.manual_controller import KeyboardController, SteeringWheelController
+from metadrive.utils import clip
+from metadrive.examples import expert
+from metadrive.policy.env_input_policy import EnvInputPolicy
+from direct.controls.InputState import InputState
+from metadrive.engine.engine_utils import get_global_config
 class FrontBackObjects:
     def __init__(self, front_ret, back_ret, front_dist, back_dist):
         self.front_objs = front_ret
@@ -132,6 +137,44 @@ class FrontBackObjects:
                         back_ret[i] = obj
 
         return cls(front_ret, back_ret, min_front_long, min_back_long)
+
+class KeyboardController():
+    INCREMENT = 2e-1
+    def __init__(self):
+        self.pygame_control = False
+        if not self.pygame_control:
+            self.inputs = InputState()
+            self.inputs.watchWithModifiers('forward', 'w')
+            self.inputs.watchWithModifiers('reverse', 's')
+            self.inputs.watchWithModifiers('turnLeft', 'a')
+            self.inputs.watchWithModifiers('turnRight', 'd')
+
+    def process_input(self, vehicle):
+        if 1:
+            steering = 0.0
+            throttle_brake = 0.0
+            if not self.inputs.isSet('turnLeft') and not self.inputs.isSet('turnRight'):
+                steering = 0.0
+            else:
+                if self.inputs.isSet('turnLeft'):
+                    steering = 1.0
+                if self.inputs.isSet('turnRight'):
+                    steering = -1.0
+            if not self.inputs.isSet('forward') and not self.inputs.isSet("reverse"):
+                throttle_brake = 0.0
+            else:
+                if self.inputs.isSet('forward'):
+                    throttle_brake = 1.0
+                if self.inputs.isSet('reverse'):
+                    throttle_brake = -1.0
+        else:
+            steering = 0.0
+            throttle_brake = 0.0
+            key_press = pygame.key.get_pressed()
+            throttle_brake += key_press[pygame.K_w] - key_press[pygame.K_s]
+            steering += key_press[pygame.K_a] - key_press[pygame.K_d]
+
+        return [steering, throttle_brake]
 
 
 class IDMPolicy(BasePolicy):
@@ -365,3 +408,121 @@ class ManualControllableIDMPolicy(IDMPolicy):
             return self.manual_control_policy.act(agent_id)
         else:
             return super(ManualControllableIDMPolicy, self).act(agent_id)
+
+class ManualMacroDiscretePolicy(BasePolicy):
+    NORMAL_SPEED = 30
+    def __init__(self, control_object, random_seed):
+        super(ManualMacroDiscretePolicy, self).__init__(control_object=control_object, random_seed=random_seed)
+        self.inputs = InputState()
+        self.inputs.watchWithModifiers('accelerate', 'w')
+        self.inputs.watchWithModifiers('deccelerate', 's')
+        self.inputs.watchWithModifiers('laneLeft', 'a')
+        self.inputs.watchWithModifiers('laneRight', 'd')
+        self.heading_pid = PIDController(1.7, 0.01, 3.5)
+        self.lateral_pid = PIDController(0.3, .002, 0.05)
+        
+    def act(self, *args, **kwargs):
+        lanes = self.get_neighboring_lanes()
+        steering = 0.0
+        throtle_brake = 0.0
+        centre_lane = lanes[1]
+        #print(lanes)
+        target_lane = centre_lane
+        if centre_lane is None:
+            return [steering, throtle_brake]
+        if self.inputs.isSet('accelerate'):
+            throtle_brake = 1.0
+        elif self.inputs.isSet('deccelerate'):
+            throtle_brake = -1.0 
+        if self.inputs.isSet('laneLeft'):
+            left_lane = lanes[0]
+            if left_lane is None:
+                pass 
+                #steering = self.steering_control(centre_lane)
+            else:
+                target_lane = left_lane
+                #steering = self.steering_control(left_lane)
+        elif self.inputs.isSet('laneRight'):
+            right_lane = lanes[2]
+            if right_lane is None:
+                pass
+                #steering = self.steering_control(centre_lane)
+            else:
+                target_lane = right_lane
+                #steering = self.steering_control(right_lane)
+        else:
+            pass
+        steering = self.steering_control(target_lane)
+        return [steering, throtle_brake]
+
+    def get_neighboring_lanes(self):
+        ref_lanes = self.control_object.navigation.current_ref_lanes
+        lane = self.control_object.lane
+        if ref_lanes is not None:
+            assert lane in ref_lanes
+        idx = lane.index[-1]
+        left_lane = ref_lanes[idx - 1] if idx > 0 and ref_lanes is not None else None 
+        right_lane = ref_lanes[idx + 1] if idx + 1 < len(ref_lanes) and ref_lanes is not None else None
+        lanes = [left_lane, lane, right_lane] 
+        return lanes 
+
+    def move_to_next_road(self):
+        current_lanes = self.control_object.navigation.current_ref_lanes 
+        if self.routing_target_lane is None:
+            self.routing_target_lane = self.control_object.lane 
+            return True if self.routing_target_lane in current_lanes else False 
+        if self.routing_target_lane not in current_lanes:
+            for lane in current_lanes:
+                if self.routing_target_lane.is_previous_lane_of(lane):
+                    self.routing_target_lane = lane 
+                return True
+            return False 
+        elif self.control_object.lane in current_lanes and self.routing_target_lane is not self.control_object.lane:
+            self.routing_target_lane = self.control_object.lane
+            return True 
+        else:
+            return True
+
+    def lane_change_policy(self):
+        current_lanes = self.control_object.navigation.current_ref_lanes
+        available_routing_index_range = [i for i in range(len(current_lanes))]
+        next_lanes = self.control_object.navigation.next_ref_lanes
+        lane_num_diff = len(current_lanes) - len(next_lanes) if next_lanes is not None else 0
+        if lane_num_diff > 0:
+            if current_lanes[0].is_previous_lane_of(next_lanes[0]):
+                index_range = [i for i in range(len(next_lanes))]
+            else:
+                index_range = [i for i in range(lane_num_diff, len(current_lanes))]
+            self.available_routing_index_range = index_range 
+            if self.routing_target_lane.index[-1] not in index_range:
+                if self.routing_target_lane.index[-1] > index_range[-1]:
+                    return current_lanes[self.routing_target_lane.index[-1] - 1]
+                else:
+                    return current_lanes[self.routing_target_lane.index[-1] - 1]
+
+    def steering_control(self, target_lane) -> float:
+        # heading control following a lateral distance control
+        ego_vehicle = self.control_object
+        long, lat = target_lane.local_coordinates(ego_vehicle.position)
+        lane_heading = target_lane.heading_theta_at(long + 1)
+        v_heading = ego_vehicle.heading_theta
+        steering = self.heading_pid.get_result(wrap_to_pi(lane_heading - v_heading))
+        steering += self.lateral_pid.get_result(-lat)
+        return float(steering)
+
+    def acceleration(self, front_obj, dist_to_front) -> float:
+        ego_vehicle = self.control_object
+        ego_target_speed = not_zero(self.target_speed, 0)
+        acceleration = self.ACC_FACTOR * (1 - np.power(max(ego_vehicle.speed, 0) / ego_target_speed, self.DELTA))
+        if front_obj:
+            d = dist_to_front
+            speed_diff = self.desired_gap(ego_vehicle, front_obj) / not_zero(d)
+            acceleration -= self.ACC_FACTOR * (speed_diff**2)
+        return acceleration
+
+
+
+
+
+    
+

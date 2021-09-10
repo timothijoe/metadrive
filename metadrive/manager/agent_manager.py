@@ -2,6 +2,7 @@ import copy
 from metadrive.constants import DEFAULT_AGENT
 from metadrive.policy.env_input_policy import EnvInputPolicy
 from metadrive.policy.idm_policy import ManualControllableIDMPolicy, IDMPolicy
+from metadrive.policy.macro_policy import ManualMacroDiscretePolicy
 from metadrive.policy.manual_control_policy import ManualControlPolicy
 from metadrive.policy.AI_protect_policy import AIProtectPolicy
 import logging
@@ -74,17 +75,19 @@ class AgentManager(BaseManager):
 
     def _get_policy(self, obj):
         # note: agent.id = object id
-        if self.engine.global_config["manual_control"] and self.engine.global_config["use_render"]:
-            if self.engine.global_config.get("use_AI_protector", False):
-                policy = AIProtectPolicy()
-            elif self.engine.global_config["IDM_agent"]:
-                policy = ManualControllableIDMPolicy(obj, self.generate_seed())
-            else:
-                policy = ManualControlPolicy()
-        elif self.engine.global_config["IDM_agent"]:
-            policy = IDMPolicy(obj, self.generate_seed())
-        else:
-            policy = EnvInputPolicy()
+        # if self.engine.global_config["manual_control"] and self.engine.global_config["use_render"]:
+        #     if self.engine.global_config.get("use_AI_protector", False):
+        #         policy = AIProtectPolicy()
+        #     elif self.engine.global_config["IDM_agent"]:
+        #         policy = ManualControllableIDMPolicy(obj, self.generate_seed())
+        #     else:
+        #         policy = ManualControlPolicy()
+        # elif self.engine.global_config["IDM_agent"]:
+        #     policy = IDMPolicy(obj, self.generate_seed())
+        # else:
+        #     policy = EnvInputPolicy()
+
+        policy = ManualMacroDiscretePolicy(obj, self.generate_seed())
         return policy
 
     def before_reset(self):
