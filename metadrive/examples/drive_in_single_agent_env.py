@@ -43,6 +43,7 @@ if __name__ == "__main__":
             assert isinstance(o, np.ndarray)
             print("The observation is an numpy array with shape: ", o.shape)
         for i in range(1, 1000000000):
+            print(env.action_type.actions_indexes["LANE_RIGHT"])
             o, r, d, info = env.step([0, 0])
             env.render(
                 text={

@@ -15,6 +15,7 @@ from metadrive.engine.engine_utils import initialize_engine, close_engine, \
     engine_initialized, set_global_random_seed
 from metadrive.manager.agent_manager import AgentManager
 from metadrive.obs.observation_base import ObservationBase
+from metadrive.policy.discrete_policy import ActionType, DiscreteMetaAction
 from metadrive.utils import Config, merge_dicts, get_np_random, concat_step_infos
 from metadrive.utils.utils import auto_termination
 
@@ -133,6 +134,10 @@ class BaseEnv(gym.Env):
             init_observations=self._get_observations(), init_action_space=self._get_action_space()
         )
 
+        self.action_type = DiscreteMetaAction()
+        self.action_spaces = self.action_type.space()
+        self.time = 0
+
         # map setting
         self.start_seed = self.config["start_seed"]
         self.env_num = self.config["environment_num"]
@@ -204,6 +209,13 @@ class BaseEnv(gym.Env):
         o, r, d, i = self._get_step_return(actions, step_infos)
         return o, r, d, i
 
+    def stepp(self, actions):
+        self.episode_steps += 1
+        actions = self._preprocess_actions(actions)
+        step_infos = self._step_simulator(actions)
+        o, r, d, i = self._get_step_return(actions, step_infos)
+        return o, r, d, i
+
     def _preprocess_actions(self, actions: Union[np.ndarray, Dict[AnyStr, np.ndarray]]) \
             -> Union[np.ndarray, Dict[AnyStr, np.ndarray]]:
         if not self.is_multi_agent:
@@ -225,6 +237,15 @@ class BaseEnv(gym.Env):
         return actions
 
     def _step_simulator(self, actions):
+
+
+        simulation_frequency = 15
+        policy_frequency = 1
+        frames = int(simulation_frequency / policy_frequency)
+        for frame in range(frames):
+            if actions is not None \
+                and self.time % int(simulation_frequency / policy_frequency) == 0:
+                scene_manager_before_step_infos = self.engine.before_step(actions)
         # Note that we use shallow update for info dict in this function! This will accelerate system.
         scene_manager_before_step_infos = self.engine.before_step(actions)
         # step all entities

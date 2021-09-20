@@ -205,6 +205,27 @@ class AgentManager(BaseManager):
         for v_name in finished:
             self._dying_objects.pop(v_name)
         return step_infos
+    
+    def before_stepp(self, ):
+        # not in replay mode
+        self._agents_finished_this_frame = dict()
+        step_infos = {}
+        for agent_id in self.active_agents.keys():
+            policy = self.engine.get_policy(self._agent_to_object[agent_id])
+            action = policy.act(agent_id)
+            step_infos[agent_id] = policy.get_action_info()
+            step_infos[agent_id].update(self.get_agent(agent_id).before_step(action))
+
+        finished = set()
+        for v_name in self._dying_objects.keys():
+            self._dying_objects[v_name][1] -= 1
+            if self._dying_objects[v_name][1] == 0:  # Countdown goes to 0, it's time to remove the vehicles!
+                v = self._dying_objects[v_name][0]
+                self._remove_vehicle(v)
+                finished.add(v_name)
+        for v_name in finished:
+            self._dying_objects.pop(v_name)
+        return step_infos
 
     def after_step(self, *args, **kwargs):
         step_infos = self.for_each_active_agents(lambda v: v.after_step())

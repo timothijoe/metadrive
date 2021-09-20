@@ -33,6 +33,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--env", type=str, default="roundabout", choices=list(envs.keys()))
+    #parser.add_argument("--env", type=str, default="parkinglot", choices=list(envs.keys()))
     parser.add_argument("--pygame_render", action="store_true")
     args = parser.parse_args()
     env_cls_name = args.env
