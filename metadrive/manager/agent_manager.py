@@ -185,13 +185,18 @@ class AgentManager(BaseManager):
     def set_allow_respawn(self, flag: bool):
         self._allow_respawn = flag
 
-    def before_step(self):
+    def before_step(self, external_actions):
         # not in replay mode
         self._agents_finished_this_frame = dict()
         step_infos = {}
         for agent_id in self.active_agents.keys():
             policy = self.engine.get_policy(self._agent_to_object[agent_id])
-            action = policy.act(agent_id)
+            macro_action = None  
+            if agent_id in external_actions.keys():
+                macro_action = external_actions[agent_id]
+                action = policy.act(agent_id, macro_action)
+            else:
+                action = policy.act(agent_id)
             step_infos[agent_id] = policy.get_action_info()
             step_infos[agent_id].update(self.get_agent(agent_id).before_step(action))
 

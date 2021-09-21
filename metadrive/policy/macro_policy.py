@@ -14,6 +14,7 @@ from metadrive.examples import expert
 from metadrive.policy.env_input_policy import EnvInputPolicy
 from direct.controls.InputState import InputState
 from metadrive.engine.engine_utils import get_global_config
+from metadrive.policy.discrete_policy import ActionType, DiscreteMetaAction
 class FrontBackObjects:
     def __init__(self, front_ret, back_ret, front_dist, back_dist):
         self.front_objs = front_ret
@@ -411,6 +412,7 @@ class ManualControllableIDMPolicy(IDMPolicy):
 
 class ManualMacroDiscretePolicy(BasePolicy):
     NORMAL_SPEED = 30
+    ACC_FACTOR = 1.0 
     def __init__(self, control_object, random_seed):
         super(ManualMacroDiscretePolicy, self).__init__(control_object=control_object, random_seed=random_seed)
         self.inputs = InputState()
@@ -420,39 +422,61 @@ class ManualMacroDiscretePolicy(BasePolicy):
         self.inputs.watchWithModifiers('laneRight', 'd')
         self.heading_pid = PIDController(1.7, 0.01, 3.5)
         self.lateral_pid = PIDController(0.3, .002, 0.05)
+        self.DELTA_SPEED = 5
+        self.target_lane = self.get_neighboring_lanes()[1]
+        self.target_speed = self.NORMAL_SPEED           
+        
         
     def act(self, *args, **kwargs):
         lanes = self.get_neighboring_lanes()
-        steering = 0.0
-        throtle_brake = 1.0
-        centre_lane = lanes[1]
-        #print(lanes)
-        target_lane = centre_lane
-        if centre_lane is None:
-            return [steering, throtle_brake]
-        if self.inputs.isSet('accelerate'):
-            throtle_brake = 1.0
-        elif self.inputs.isSet('deccelerate'):
-            throtle_brake = -1.0 
-        if self.inputs.isSet('laneLeft'):
+        agent_id = args[0]
+        macro_action = args[1]
+        if macro_action == "FASTER":
+            self.target_speed += self.DELTA_SPEED
+        elif macro_action == "SLOWER":
+            self.target_speed -= self.DELTA_SPEED    
+        elif macro_action ==  "LANE_LEFT":
             left_lane = lanes[0]
-            if left_lane is None:
-                pass 
-                #steering = self.steering_control(centre_lane)
-            else:
-                target_lane = left_lane
-                #steering = self.steering_control(left_lane)
-        elif self.inputs.isSet('laneRight'):
+            if left_lane is not None:
+                self.target_lane = left_lane 
+        elif macro_action == "RIGHT_LANE":
             right_lane = lanes[2]
-            if right_lane is None:
-                pass
-                #steering = self.steering_control(centre_lane)
-            else:
-                target_lane = right_lane
-                #steering = self.steering_control(right_lane)
-        else:
-            pass
-        steering = self.steering_control(target_lane)
+            if right_lane is not None:
+                self.target_lane = right_lane
+        
+        steering = self.steering_control(self.target_lane)
+        throtle_brake = self.speed_control()
+        
+        # steering = 0.0
+        # throtle_brake = 1.0
+        # centre_lane = lanes[1]
+        # #print(lanes)
+        # target_lane = centre_lane
+        # if centre_lane is None:
+        #     return [steering, throtle_brake]
+        # if self.inputs.isSet('accelerate'):
+        #     throtle_brake = 1.0
+        # elif self.inputs.isSet('deccelerate'):
+        #     throtle_brake = -1.0 
+        # if self.inputs.isSet('laneLeft'):
+        #     left_lane = lanes[0]
+        #     if left_lane is None:
+        #         pass 
+        #         #steering = self.steering_control(centre_lane)
+        #     else:
+        #         target_lane = left_lane
+        #         #steering = self.steering_control(left_lane)
+        # elif self.inputs.isSet('laneRight'):
+        #     right_lane = lanes[2]
+        #     if right_lane is None:
+        #         pass
+        #         #steering = self.steering_control(centre_lane)
+        #     else:
+        #         target_lane = right_lane
+        #         #steering = self.steering_control(right_lane)
+        # else:
+        #     pass
+        # steering = self.steering_control(target_lane)
         return [steering, throtle_brake]
 
     def get_neighboring_lanes(self):
@@ -509,6 +533,12 @@ class ManualMacroDiscretePolicy(BasePolicy):
         steering = self.heading_pid.get_result(wrap_to_pi(lane_heading - v_heading))
         steering += self.lateral_pid.get_result(-lat)
         return float(steering)
+    
+    def speed_control(self):
+        ego_vehicle = self.control_object
+        ego_target_speed = not_zero(self.target_speed, 0)
+        acceleration = self.ACC_FACTOR * (1 - np.power(max(ego_vehicle.speed, 0) / ego_target_speed, self.DELTA))
+        return acceleration 
 
     def acceleration(self, front_obj, dist_to_front) -> float:
         ego_vehicle = self.control_object
