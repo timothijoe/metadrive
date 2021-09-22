@@ -18,6 +18,8 @@ from metadrive.obs.observation_base import ObservationBase
 from metadrive.utils import Config, merge_dicts, get_np_random, concat_step_infos
 from metadrive.utils.utils import auto_termination
 
+from metadrive.policy.discrete_policy import DiscreteMetaAction
+
 BASE_DEFAULT_CONFIG = dict(
     # ===== Generalization =====
     start_seed=0,
@@ -133,6 +135,10 @@ class BaseEnv(gym.Env):
             init_observations=self._get_observations(), init_action_space=self._get_action_space()
         )
 
+        self.action_type = DiscreteMetaAction()
+        self.action_spaces = self.action_type.space()
+        self.time = 0 
+
         # map setting
         self.start_seed = self.config["start_seed"]
         self.env_num = self.config["environment_num"]
@@ -204,6 +210,34 @@ class BaseEnv(gym.Env):
         o, r, d, i = self._get_step_return(actions, step_infos)
         return o, r, d, i
 
+    def zt_step(self, actions: Union[np.ndarray, Dict[AnyStr, np.ndarray]]):
+        self.episode_steps += 1
+        macro_actions = self._preprocess_macro_actions(actions)
+        step_infos = self._step_macro_simulator(actions)   
+        o, r, d, i = self._get_step_return(actions, step_infos)
+        return o, r, d, i
+        
+    def _preprocess_macro_actions(self, actions: Union[np.ndarray, Dict[AnyStr, np.ndarray]]) \
+            -> Union[np.ndarray, Dict[AnyStr, np.ndarray]]:
+        if not self.is_multi_agent:
+            actions = {v_id: actions for v_id in self.vehicles.keys()}
+        else:
+            if self.config["vehicle_config"]["action_check"]:
+                # Check whether some actions are not provided.
+                given_keys = set(actions.keys())
+                have_keys = set(self.vehicles.keys())
+                assert given_keys == have_keys, "The input actions: {} have incompatible keys with existing {}!".format(
+                    given_keys, have_keys
+                )
+            else:
+                # That would be OK if extra actions is given. This is because, when evaluate a policy with naive
+                # implementation, the "termination observation" will still be given in T=t-1. And at T=t, when you
+                # collect action from policy(last_obs) without masking, then the action for "termination observation"
+                # will still be computed. We just filter it out here.
+                actions = {v_id: actions[v_id] for v_id in self.vehicles.keys()}
+        return actions    
+
+
     def _preprocess_actions(self, actions: Union[np.ndarray, Dict[AnyStr, np.ndarray]]) \
             -> Union[np.ndarray, Dict[AnyStr, np.ndarray]]:
         if not self.is_multi_agent:
@@ -230,6 +264,25 @@ class BaseEnv(gym.Env):
         # step all entities
         self.engine.step(self.config["decision_repeat"])
         # update states, if restore from episode data, position and heading will be force set in update_state() function
+        scene_manager_after_step_infos = self.engine.after_step()
+        return merge_dicts(
+            scene_manager_after_step_infos, scene_manager_before_step_infos, allow_new_keys=True, without_copy=True
+        )
+
+
+    def _step_macro_simulator(self, actions):
+        simulation_frequency = 15
+        policy_frequency = 1 
+        frames = int(simulation_frequency / policy_frequency)
+        self.time = 0
+        for frame in range(frames):
+            if self.time % int(simulation_frequency / policy_frequency) == 0:
+                scene_manager_before_step_infos = self.engine.before_step_macro(actions)
+                self.engine.step()
+            else:
+                _ = self.engine.before_step_macro()
+                self.engine.step()
+            self.time += 1
         scene_manager_after_step_infos = self.engine.after_step()
         return merge_dicts(
             scene_manager_after_step_infos, scene_manager_before_step_infos, allow_new_keys=True, without_copy=True

@@ -4,6 +4,7 @@ from metadrive.policy.env_input_policy import EnvInputPolicy
 from metadrive.policy.idm_policy import ManualControllableIDMPolicy, IDMPolicy
 from metadrive.policy.manual_control_policy import ManualControlPolicy
 from metadrive.policy.AI_protect_policy import AIProtectPolicy
+from metadrive.policy.macro_policy import ManualMacroDiscretePolicy
 import logging
 from typing import Dict
 
@@ -85,6 +86,7 @@ class AgentManager(BaseManager):
             policy = IDMPolicy(obj, self.generate_seed())
         else:
             policy = EnvInputPolicy()
+        #policy = ManualMacroDiscretePolicy(obj, self.generate_seed())
         return policy
 
     def before_reset(self):
@@ -182,12 +184,16 @@ class AgentManager(BaseManager):
     def set_allow_respawn(self, flag: bool):
         self._allow_respawn = flag
 
-    def before_step(self):
+    def before_step(self, external_actions = None):
         # not in replay mode
         self._agents_finished_this_frame = dict()
         step_infos = {}
         for agent_id in self.active_agents.keys():
             policy = self.engine.get_policy(self._agent_to_object[agent_id])
+            macro_action = None 
+            # if agent_id in external_actions.keys():
+            #     macro_action = external_actions[agent_id]
+            # action = policy.act(agent_id, macro_action)
             action = policy.act(agent_id)
             step_infos[agent_id] = policy.get_action_info()
             step_infos[agent_id].update(self.get_agent(agent_id).before_step(action))

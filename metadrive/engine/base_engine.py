@@ -10,7 +10,7 @@ from metadrive.base_class.randomizable import Randomizable
 from metadrive.engine.core.engine_core import EngineCore
 from metadrive.engine.interface import Interface
 from metadrive.manager.base_manager import BaseManager
-
+#from metadrive.manager.agent_manager import AgentManager
 logger = logging.getLogger(__name__)
 
 
@@ -200,6 +200,18 @@ class BaseEngine(EngineCore, Randomizable):
         step_infos = {}
         self.external_actions = external_actions
         for manager in self._managers.values():
+            step_infos.update(manager.before_step())
+        return step_infos
+
+    def before_step_macro(self, actions) -> Dict:
+        """
+        Update states after finishing movement
+        :return: if this episode is done
+        """
+        step_infos = {}
+        for manager in self._managers.values():
+            if isinstance(manager, AgentManager):
+                step_infos.update(manager.before_step(actions))
             step_infos.update(manager.before_step())
         return step_infos
 
