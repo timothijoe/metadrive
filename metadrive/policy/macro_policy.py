@@ -429,7 +429,11 @@ class ManualMacroDiscretePolicy(BasePolicy):
         
     def act(self, *args, **kwargs):
         lanes = self.get_neighboring_lanes()
-        print('arg length: {}'.format(len(args)))
+        print('vel: {}'.format(self.control_object.velocity))
+        if(len(args) >= 2):
+            macro_action = args[1]
+            print('macro_control: {}'.format(macro_action))
+        #print('arg length: {}'.format(len(args)))
         # agent_id = args[0]
         # macro_action = args[1]
         #print('macro_control: {}'.format(macro_action))
@@ -456,7 +460,7 @@ class ManualMacroDiscretePolicy(BasePolicy):
         # throtle_brake = self.speed_control(self.target_speed)
         
         steering = 0.0
-        throtle_brake = 1.0
+        throtle_brake = 0.0
         centre_lane = lanes[1]
         #print(lanes)
         target_lane = centre_lane

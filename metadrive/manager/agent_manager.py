@@ -75,18 +75,18 @@ class AgentManager(BaseManager):
 
     def _get_policy(self, obj):
         # note: agent.id = object id
-        if self.engine.global_config["manual_control"] and self.engine.global_config["use_render"]:
-            if self.engine.global_config.get("use_AI_protector", False):
-                policy = AIProtectPolicy()
-            elif self.engine.global_config["IDM_agent"]:
-                policy = ManualControllableIDMPolicy(obj, self.generate_seed())
-            else:
-                policy = ManualControlPolicy()
-        elif self.engine.global_config["IDM_agent"]:
-            policy = IDMPolicy(obj, self.generate_seed())
-        else:
-            policy = EnvInputPolicy()
-        #policy = ManualMacroDiscretePolicy(obj, self.generate_seed())
+        # if self.engine.global_config["manual_control"] and self.engine.global_config["use_render"]:
+        #     if self.engine.global_config.get("use_AI_protector", False):
+        #         policy = AIProtectPolicy()
+        #     elif self.engine.global_config["IDM_agent"]:
+        #         policy = ManualControllableIDMPolicy(obj, self.generate_seed())
+        #     else:
+        #         policy = ManualControlPolicy()
+        # elif self.engine.global_config["IDM_agent"]:
+        #     policy = IDMPolicy(obj, self.generate_seed())
+        # else:
+        #     policy = EnvInputPolicy()
+        policy = ManualMacroDiscretePolicy(obj, self.generate_seed())
         return policy
 
     def before_reset(self):
@@ -194,7 +194,7 @@ class AgentManager(BaseManager):
             # if agent_id in external_actions.keys():
             #     macro_action = external_actions[agent_id]
             # action = policy.act(agent_id, macro_action)
-            action = policy.act(agent_id)
+            action = policy.act(agent_id, external_actions)
             step_infos[agent_id] = policy.get_action_info()
             step_infos[agent_id].update(self.get_agent(agent_id).before_step(action))
 
