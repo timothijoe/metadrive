@@ -213,7 +213,7 @@ class BaseEnv(gym.Env):
     def zt_step(self, actions: Union[np.ndarray, Dict[AnyStr, np.ndarray]]):
         self.episode_steps += 1
         macro_actions = self._preprocess_macro_actions(actions)
-        step_infos = self._step_macro_simulator(actions)   
+        step_infos = self._step_macro_simulator(macro_actions)   
         o, r, d, i = self._get_step_return(actions, step_infos)
         return o, r, d, i
         
@@ -271,19 +271,22 @@ class BaseEnv(gym.Env):
 
 
     def _step_macro_simulator(self, actions):
-        simulation_frequency = 15
+        simulation_frequency = 150
         policy_frequency = 1 
         frames = int(simulation_frequency / policy_frequency)
         self.time = 0
+        actions = {vid: self.action_type.actions[vvalue] for vid, vvalue in actions.items()}
         for frame in range(frames):
             if self.time % int(simulation_frequency / policy_frequency) == 0:
                 scene_manager_before_step_infos = self.engine.before_step_macro(actions)
                 self.engine.step()
+                #scene_manager_after_step_infos = self.engine.after_step()
             else:
                 _ = self.engine.before_step_macro()
                 self.engine.step()
+            scene_manager_after_step_infos = self.engine.after_step()
             self.time += 1
-        scene_manager_after_step_infos = self.engine.after_step()
+        #scene_manager_after_step_infos = self.engine.after_step()
         return merge_dicts(
             scene_manager_after_step_infos, scene_manager_before_step_infos, allow_new_keys=True, without_copy=True
         )

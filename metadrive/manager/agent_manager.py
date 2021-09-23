@@ -191,10 +191,10 @@ class AgentManager(BaseManager):
         for agent_id in self.active_agents.keys():
             policy = self.engine.get_policy(self._agent_to_object[agent_id])
             macro_action = None 
-            # if agent_id in external_actions.keys():
-            #     macro_action = external_actions[agent_id]
-            # action = policy.act(agent_id, macro_action)
-            action = policy.act(agent_id, external_actions)
+            if external_actions is not None and  agent_id in external_actions.keys():
+                macro_action = external_actions[agent_id]
+            action = policy.act(agent_id, macro_action)
+            #action = policy.act(agent_id, external_actions)
             step_infos[agent_id] = policy.get_action_info()
             step_infos[agent_id].update(self.get_agent(agent_id).before_step(action))
 

@@ -423,6 +423,7 @@ class ManualMacroDiscretePolicy(BasePolicy):
         self.heading_pid = PIDController(1.7, 0.01, 3.5)
         self.lateral_pid = PIDController(0.3, .002, 0.05)
         self.DELTA_SPEED = 5
+        self.DELTA = 10
         self.target_lane = self.get_neighboring_lanes()[1]
         self.target_speed = self.NORMAL_SPEED           
         
@@ -432,64 +433,66 @@ class ManualMacroDiscretePolicy(BasePolicy):
         print('vel: {}'.format(self.control_object.velocity))
         if(len(args) >= 2):
             macro_action = args[1]
-            print('macro_control: {}'.format(macro_action))
+            # print('macro_control: {}'.format(macro_action))
         #print('arg length: {}'.format(len(args)))
         # agent_id = args[0]
         # macro_action = args[1]
         #print('macro_control: {}'.format(macro_action))
-        # if macro_action == "FASTER":
-        #     self.target_speed += self.DELTA_SPEED
-        # elif macro_action == "SLOWER":
-        #     self.target_speed -= self.DELTA_SPEED    
-        # elif macro_action ==  "LANE_LEFT":
-        #     left_lane = lanes[0]
-        #     if left_lane is not None:
-        #         self.target_lane = left_lane 
-        # elif macro_action == "RIGHT_LANE":
-        #     right_lane = lanes[2]
-        #     if right_lane is not None:
-        #         self.target_lane = right_lane
-        # elif macro_action == "IDLE":
-        #     current_lane = lanes[1]
-        #     self.target_lane = current_lane 
-        # else:
-        #     current_lane = lanes[1]
-        #     self.target_lane = current_lane
-        
-        # steering = self.steering_control(self.target_lane)
-        # throtle_brake = self.speed_control(self.target_speed)
-        
-        steering = 0.0
-        throtle_brake = 0.0
-        centre_lane = lanes[1]
-        #print(lanes)
-        target_lane = centre_lane
-        if centre_lane is None:
-            return [steering, throtle_brake]
-        if self.inputs.isSet('accelerate'):
-            throtle_brake = 1.0
-        elif self.inputs.isSet('deccelerate'):
-            throtle_brake = -1.0 
-        if self.inputs.isSet('laneLeft'):
+        if macro_action == "FASTER":
+            self.target_speed += self.DELTA_SPEED
+        elif macro_action == "SLOWER":
+            self.target_speed -= self.DELTA_SPEED    
+        elif macro_action ==  "LANE_LEFT":
             left_lane = lanes[0]
-            if left_lane is None:
-                pass 
-                #steering = self.steering_control(centre_lane)
-            else:
-                target_lane = left_lane
-                #steering = self.steering_control(left_lane)
-        elif self.inputs.isSet('laneRight'):
+            if left_lane is not None:
+                self.target_lane = left_lane 
+        elif macro_action == "LANE_RIGHT":
             right_lane = lanes[2]
-            if right_lane is None:
-                pass
-                #steering = self.steering_control(centre_lane)
-            else:
-                target_lane = right_lane
-                #steering = self.steering_control(right_lane)
+            if right_lane is not None:
+                self.target_lane = right_lane
+        elif macro_action == "IDLE":
+            current_lane = lanes[1]
+            self.target_lane = current_lane 
         else:
             pass
-        steering = self.steering_control(target_lane)
+            # current_lane = lanes[1]
+            # self.target_lane = current_lane
+        
+        steering = self.steering_control(self.target_lane)
+        throtle_brake = self.speed_control(self.target_speed)
         return [steering, throtle_brake]
+        
+        # steering = 0.0
+        # throtle_brake = 0.0
+        # centre_lane = lanes[1]
+        # #print(lanes)
+        # target_lane = centre_lane
+        # if centre_lane is None:
+        #     return [steering, throtle_brake]
+        # if self.inputs.isSet('accelerate'):
+        #     throtle_brake = 1.0
+        # elif self.inputs.isSet('deccelerate'):
+        #     throtle_brake = -1.0 
+        # if self.inputs.isSet('laneLeft'):
+        #     left_lane = lanes[0]
+        #     if left_lane is None:
+        #         pass 
+        #         #steering = self.steering_control(centre_lane)
+        #     else:
+        #         target_lane = left_lane
+        #         #steering = self.steering_control(left_lane)
+        # elif self.inputs.isSet('laneRight'):
+        #     right_lane = lanes[2]
+        #     if right_lane is None:
+        #         pass
+        #         #steering = self.steering_control(centre_lane)
+        #     else:
+        #         target_lane = right_lane
+        #         #steering = self.steering_control(right_lane)
+        # else:
+        #     pass
+        # steering = self.steering_control(target_lane)
+        # return [steering, throtle_brake]
 
     def get_neighboring_lanes(self):
         ref_lanes = self.control_object.navigation.current_ref_lanes
@@ -501,6 +504,9 @@ class ManualMacroDiscretePolicy(BasePolicy):
         right_lane = ref_lanes[idx + 1] if idx + 1 < len(ref_lanes) and ref_lanes is not None else None
         lanes = [left_lane, lane, right_lane] 
         return lanes 
+
+    def follow_road(self) -> None:
+        return
 
     def move_to_next_road(self):
         current_lanes = self.control_object.navigation.current_ref_lanes 

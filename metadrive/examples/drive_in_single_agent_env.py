@@ -43,7 +43,10 @@ if __name__ == "__main__":
             assert isinstance(o, np.ndarray)
             print("The observation is an numpy array with shape: ", o.shape)
         for i in range(1, 1000000000):
-            o, r, d, info = env.step([0, 0])
+            # print(env.action_type.actions_indexes["LANE_LEFT"])
+            action_zt = env.action_type.actions_indexes["LANE_LEFT"] if i % 2 ==0 else env.action_type.actions_indexes["LANE_RIGHT"]
+            o, r, d, info = env.zt_step(action_zt)
+            #o, r, d, info = env.zt_step(env.action_type.actions_indexes["LANE_RIGHT"])
             env.render(
                 text={
                     "Auto-Drive (Switch mode: T)": "on" if env.current_track_vehicle.expert_takeover else "off",

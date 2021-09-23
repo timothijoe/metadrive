@@ -208,14 +208,14 @@ class BaseEngine(EngineCore, Randomizable):
                 step_infos.update(manager.before_step())
         return step_infos
 
-    def before_step_macro(self, actions) -> Dict:
+    def before_step_macro(self, actions = None) -> Dict:
         """
         Update states after finishing movement
         :return: if this episode is done
         """
         step_infos = {}
         for manager in self._managers.values():
-            if isinstance(manager, AgentManager):
+            if(manager.__class__.__name__ == 'AgentManager'):
                 step_infos.update(manager.before_step(actions))
             else:
                 step_infos.update(manager.before_step())
