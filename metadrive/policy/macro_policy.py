@@ -430,7 +430,7 @@ class ManualMacroDiscretePolicy(BasePolicy):
         
     def act(self, *args, **kwargs):
         lanes = self.get_neighboring_lanes()
-        print('vel: {}'.format(self.control_object.velocity))
+        # print('vel: {}'.format(self.control_object.velocity))
         if(len(args) >= 2):
             macro_action = args[1]
             # print('macro_control: {}'.format(macro_action))
@@ -499,6 +499,14 @@ class ManualMacroDiscretePolicy(BasePolicy):
         lane = self.control_object.lane
         if ref_lanes is not None:
             assert lane in ref_lanes
+        if lane.after_end(self.control_object.position):
+            print('after end')
+            ref_lanes = self.control_object.navigation.next_ref_lanes
+            for ref_lane in ref_lanes:
+                if(self.target_lane.is_previous_lane_of(ref_lane)):
+                    self.target_lane = ref_lane
+        else:
+            print('not end')
         idx = lane.index[-1]
         left_lane = ref_lanes[idx - 1] if idx > 0 and ref_lanes is not None else None 
         right_lane = ref_lanes[idx + 1] if idx + 1 < len(ref_lanes) and ref_lanes is not None else None

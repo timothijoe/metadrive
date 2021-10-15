@@ -27,7 +27,8 @@ if __name__ == "__main__":
         start_seed=random.randint(0, 1000)
     )
     parser = argparse.ArgumentParser()
-    parser.add_argument("--observation", type=str, default="lidar", choices=["lidar", "rgb_camera"])
+    #parser.add_argument("--observation", type=str, default="lidar", choices=["lidar", "rgb_camera"])
+    parser.add_argument("--observation", type=str, default="birdview", choices=["lidar", "rgb_camera", "birdview"])
     args = parser.parse_args()
     if args.observation == "rgb_camera":
         config.update(dict(offscreen_render=True))
@@ -44,7 +45,13 @@ if __name__ == "__main__":
             print("The observation is an numpy array with shape: ", o.shape)
         for i in range(1, 1000000000):
             # print(env.action_type.actions_indexes["LANE_LEFT"])
-            action_zt = env.action_type.actions_indexes["LANE_LEFT"] if i % 2 ==0 else env.action_type.actions_indexes["LANE_RIGHT"]
+            if i %2 == 0:
+                action_zt = env.action_type.actions_indexes["IDLE"]
+            elif (i+1) % 4 == 0:
+                action_zt = env.action_type.actions_indexes["LANE_LEFT"]
+            else:
+                action_zt = env.action_type.actions_indexes["LANE_RIGHT"]
+            #action_zt = env.action_type.actions_indexes["LANE_LEFT"] if i % 2 ==0 else env.action_type.actions_indexes["LANE_RIGHT"]
             o, r, d, info = env.zt_step(action_zt)
             #o, r, d, info = env.zt_step(env.action_type.actions_indexes["LANE_RIGHT"])
             env.render(

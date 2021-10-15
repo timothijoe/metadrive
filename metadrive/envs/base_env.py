@@ -271,7 +271,7 @@ class BaseEnv(gym.Env):
 
 
     def _step_macro_simulator(self, actions):
-        simulation_frequency = 150
+        simulation_frequency = 80 #80
         policy_frequency = 1 
         frames = int(simulation_frequency / policy_frequency)
         self.time = 0

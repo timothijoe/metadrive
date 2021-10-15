@@ -104,6 +104,7 @@ class BIG:
         else:
             type_id = self._block_sequence[len(self.blocks)]
             block_type = PGBlockConfig.get_block(type_id)
+        block_type = PGBlockConfig.get_block('S')
 
         socket = self.np_random.choice(self.blocks[-1].get_socket_indices())
         block = block_type(
