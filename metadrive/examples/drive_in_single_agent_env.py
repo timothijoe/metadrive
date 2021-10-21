@@ -51,8 +51,10 @@ if __name__ == "__main__":
                 action_zt = env.action_type.actions_indexes["LANE_LEFT"]
             else:
                 action_zt = env.action_type.actions_indexes["LANE_RIGHT"]
+
             #action_zt = env.action_type.actions_indexes["LANE_LEFT"] if i % 2 ==0 else env.action_type.actions_indexes["LANE_RIGHT"]
             o, r, d, info = env.zt_step(action_zt)
+            print(o)
             #o, r, d, info = env.zt_step(env.action_type.actions_indexes["LANE_RIGHT"])
             env.render(
                 text={

@@ -500,13 +500,14 @@ class ManualMacroDiscretePolicy(BasePolicy):
         if ref_lanes is not None:
             assert lane in ref_lanes
         if lane.after_end(self.control_object.position):
-            print('after end')
-            ref_lanes = self.control_object.navigation.next_ref_lanes
+            if self.control_object.navigation.next_ref_lanes is not None:
+                ref_lanes = self.control_object.navigation.next_ref_lanes
+            #ref_lanes = self.control_object.navigation.next_ref_lanes
             for ref_lane in ref_lanes:
                 if(self.target_lane.is_previous_lane_of(ref_lane)):
                     self.target_lane = ref_lane
         else:
-            print('not end')
+            pass
         idx = lane.index[-1]
         left_lane = ref_lanes[idx - 1] if idx > 0 and ref_lanes is not None else None 
         right_lane = ref_lanes[idx + 1] if idx + 1 < len(ref_lanes) and ref_lanes is not None else None
@@ -562,7 +563,7 @@ class ManualMacroDiscretePolicy(BasePolicy):
     
     def speed_control(self, target_speed):
         ego_vehicle = self.control_object
-        ego_target_speed = not_zero(target_speed, 0)
+        ego_target_speed = not_zero(target_speed)
         acceleration = self.ACC_FACTOR * (1 - np.power(max(ego_vehicle.speed, 0) / ego_target_speed, self.DELTA))
         return acceleration 
 

@@ -203,10 +203,17 @@ class BaseEnv(gym.Env):
         pass
 
     # ===== Run-time =====
-    def step(self, actions: Union[np.ndarray, Dict[AnyStr, np.ndarray]]):
+    def step1(self, actions: Union[np.ndarray, Dict[AnyStr, np.ndarray]]):
         self.episode_steps += 1
         actions = self._preprocess_actions(actions)
         step_infos = self._step_simulator(actions)
+        o, r, d, i = self._get_step_return(actions, step_infos)
+        return o, r, d, i
+
+    def step(self, actions: Union[np.ndarray, Dict[AnyStr, np.ndarray]]):
+        self.episode_steps += 1
+        macro_actions = self._preprocess_macro_actions(actions)
+        step_infos = self._step_macro_simulator(macro_actions)   
         o, r, d, i = self._get_step_return(actions, step_infos)
         return o, r, d, i
 
@@ -271,7 +278,7 @@ class BaseEnv(gym.Env):
 
 
     def _step_macro_simulator(self, actions):
-        simulation_frequency = 80 #80
+        simulation_frequency = 120 #80
         policy_frequency = 1 
         frames = int(simulation_frequency / policy_frequency)
         self.time = 0

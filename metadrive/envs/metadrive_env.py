@@ -13,8 +13,9 @@ from metadrive.envs.base_env import BaseEnv
 from metadrive.manager.traffic_manager import TrafficMode
 from metadrive.obs.image_obs import ImageStateObservation
 from metadrive.obs.state_obs import LidarStateObservation
+from metadrive.obs.top_down_obs import TopDownObservation
 from metadrive.utils import clip, Config, concat_step_infos, get_np_random
-
+from gym.envs.registration import register
 pregenerated_map_file = osp.join(
     osp.dirname(osp.dirname(osp.abspath(__file__))), "assets", "maps",
     "20210814_generated_maps_start_seed_0_environment_num_30000.json"
@@ -43,12 +44,13 @@ METADRIVE_DEFAULT_CONFIG = dict(
 
     # ===== Traffic =====
     traffic_density=0.1,
-    traffic_mode=TrafficMode.Trigger,  # "Respawn", "Trigger"
-    random_traffic=False,  # Traffic is randomized at default.
+    #traffic_mode=TrafficMode.Trigger,  # "Respawn", "Trigger"
+    traffic_mode=TrafficMode.Respawn,  # "Respawn", "Trigger"
+    random_traffic=True,  # Traffic is randomized at default.
     # this will update the vehicle_config and set to traffic
     traffic_vehicle_config=dict(
-        show_navi_mark=False,
-        show_dest_mark=False,
+        show_navi_mark=True,
+        show_dest_mark=True,
         enable_reverse=False,
         show_lidar=False,
         show_lane_line_detector=False,
@@ -273,10 +275,11 @@ class MetaDriveEnv(BaseEnv):
         self.main_camera.stop_track()
 
     def get_single_observation(self, vehicle_config: "Config") -> "ObservationType":
-        if self.config["offscreen_render"]:
-            o = ImageStateObservation(vehicle_config)
-        else:
-            o = LidarStateObservation(vehicle_config)
+        # if self.config["offscreen_render"]:
+        #     o = ImageStateObservation(vehicle_config)
+        # else:
+        #     o = LidarStateObservation(vehicle_config)
+        o = TopDownObservation(vehicle_config, self, False)
         return o
 
     def setup_engine(self):
@@ -287,8 +290,10 @@ class MetaDriveEnv(BaseEnv):
         from metadrive.manager.map_manager import MapManager
         self.engine.register_manager("map_manager", MapManager())
         self.engine.register_manager("traffic_manager", TrafficManager())
-
-
+register(
+    id = 'Meta-v1',
+    entry_point = 'metadrive.envs:MetaDriveEnv',
+    )
 if __name__ == '__main__':
 
     def _act(env, action):
