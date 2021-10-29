@@ -14,6 +14,7 @@ from metadrive.manager.traffic_manager import TrafficMode
 from metadrive.obs.image_obs import ImageStateObservation
 from metadrive.obs.state_obs import LidarStateObservation
 from metadrive.obs.top_down_obs import TopDownObservation
+from metadrive.obs.top_down_obs_multi_channel import TopDownMultiChannel
 from metadrive.utils import clip, Config, concat_step_infos, get_np_random
 from gym.envs.registration import register
 pregenerated_map_file = osp.join(
@@ -280,6 +281,7 @@ class MetaDriveEnv(BaseEnv):
         # else:
         #     o = LidarStateObservation(vehicle_config)
         o = TopDownObservation(vehicle_config, self, False)
+        #o = TopDownMultiChannel(vehicle_config, self, False)
         return o
 
     def setup_engine(self):
