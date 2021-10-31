@@ -127,6 +127,8 @@ class BaseVehicle(BaseObject, BaseVehicleState):
         assert vehicle_config is not None, "Please specify the vehicle config."
         assert engine_initialized(), "Please make sure game engine is successfully initialized!"
 
+        self.zt_succ = False
+
         # NOTE: it is the game engine, not vehicle drivetrain
         self.engine = get_engine()
         BaseObject.__init__(self, name, random_seed, self.engine.global_config["vehicle_config"])
@@ -720,15 +722,23 @@ class BaseVehicle(BaseObject, BaseVehicleState):
         self.navigation = None
         self.wheels = None
 
+    # @property
+    # def arrive_destination(self):
+    #     long, lat = self.navigation.final_lane.local_coordinates(self.position)
+    #     flag = (self.navigation.final_lane.length - 5 < long < self.navigation.final_lane.length + 5) and (
+    #         self.navigation.get_current_lane_width() / 2 >= lat >=
+    #         (0.5 - self.navigation.get_current_lane_num()) * self.navigation.get_current_lane_width()
+    #     )
+    #     return flag
+
     @property
     def arrive_destination(self):
         long, lat = self.navigation.final_lane.local_coordinates(self.position)
         flag = (self.navigation.final_lane.length - 5 < long < self.navigation.final_lane.length + 5) and (
-            self.navigation.get_current_lane_width() / 2 >= lat >=
+            self.navigation.get_current_lane_width() / 1 >= lat >=
             (0.5 - self.navigation.get_current_lane_num()) * self.navigation.get_current_lane_width()
         )
         return flag
-
     @property
     def reference_lanes(self):
         return self.navigation.current_ref_lanes

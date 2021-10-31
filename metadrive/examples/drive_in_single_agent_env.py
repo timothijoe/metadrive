@@ -19,11 +19,11 @@ if __name__ == "__main__":
         use_render=True,
         manual_control=True,
         traffic_density=0.1,
-        environment_num=100,
+        environment_num=10,
         random_agent_model=True,
         random_lane_width=True,
         random_lane_num=True,
-        map=4,  # seven block
+        map=20,  # seven block
         start_seed=random.randint(0, 1000)
     )
     parser = argparse.ArgumentParser()
@@ -47,6 +47,9 @@ if __name__ == "__main__":
             # print(env.action_type.actions_indexes["LANE_LEFT"])
             if i %2 == 0:
                 action_zt = env.action_type.actions_indexes["IDLE"]
+            
+            elif i < 8:
+                action_zt = env.action_type.actions_indexes["IDLE"]
             elif (i+1) % 4 == 0:
                 action_zt = env.action_type.actions_indexes["LANE_LEFT"]
             else:
@@ -54,7 +57,8 @@ if __name__ == "__main__":
 
             #action_zt = env.action_type.actions_indexes["LANE_LEFT"] if i % 2 ==0 else env.action_type.actions_indexes["LANE_RIGHT"]
             o, r, d, info = env.zt_step(action_zt)
-            print(o)
+            print(' i = {}'.format(i))
+            #print(o)
             #o, r, d, info = env.zt_step(env.action_type.actions_indexes["LANE_RIGHT"])
             env.render(
                 text={

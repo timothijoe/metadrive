@@ -76,9 +76,12 @@ class SVehicle(BaseVehicle):
     path = ['vehicle/beetle/', (factor, factor, factor), (0, -0.2, 0.03), 0]
 
 
-vehicle_type = {"s": SVehicle, "m": MVehicle, "l": LVehicle, "xl": XLVehicle, "default": DefaultVehicle}
+vehicle_type1 = {"s": SVehicle, "m": MVehicle, "l": LVehicle, "xl": XLVehicle, "default": DefaultVehicle}
+vehicle_type = {"s": SVehicle, "m": SVehicle, "l": SVehicle, "xl": SVehicle, "default": SVehicle}
 
-
+# def random_vehicle_type(np_random, p=None):
+#     prob = [1 / len(vehicle_type) for _ in range(len(vehicle_type))] if p is None else p
+#     return vehicle_type[np_random.choice(list(vehicle_type.keys()), p=prob)]
 def random_vehicle_type(np_random, p=None):
-    prob = [1 / len(vehicle_type) for _ in range(len(vehicle_type))] if p is None else p
-    return vehicle_type[np_random.choice(list(vehicle_type.keys()), p=prob)]
+    prob = [1 / len(vehicle_type1) for _ in range(len(vehicle_type1))] if p is None else p
+    return vehicle_type[np_random.choice(list(vehicle_type1.keys()), p=prob)]

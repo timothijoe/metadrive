@@ -278,7 +278,7 @@ class BaseEnv(gym.Env):
 
 
     def _step_macro_simulator(self, actions):
-        simulation_frequency = 120 #80
+        simulation_frequency = 80 #80
         policy_frequency = 1 
         frames = int(simulation_frequency / policy_frequency)
         self.time = 0
@@ -369,6 +369,7 @@ class BaseEnv(gym.Env):
         for v_id, v in self.vehicles.items():
             self.observations[v_id].reset(self, v)
             ret[v_id] = self.observations[v_id].observe(v)
+            v.zt_succ = False
         return ret if self.is_multi_agent else self._wrap_as_single_agent(ret)
 
     def _get_step_return(self, actions, step_infos):

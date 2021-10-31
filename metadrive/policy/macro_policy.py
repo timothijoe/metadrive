@@ -213,7 +213,7 @@ class IDMPolicy(BasePolicy):
     MAX_SPEED = 100
 
     # Normal speed
-    NORMAL_SPEED = 30
+    NORMAL_SPEED = 80
 
     # Creep Speed
     CREEP_SPEED = 5
@@ -267,6 +267,8 @@ class IDMPolicy(BasePolicy):
     def move_to_next_road(self):
         # routing target lane is in current ref lanes
         current_lanes = self.control_object.navigation.current_ref_lanes
+        if(self.control_object.arrive_destination):
+            self.control_object.zt_succ = True
         if self.routing_target_lane is None:
             self.routing_target_lane = self.control_object.lane
             return True if self.routing_target_lane in current_lanes else False
@@ -411,7 +413,7 @@ class ManualControllableIDMPolicy(IDMPolicy):
             return super(ManualControllableIDMPolicy, self).act(agent_id)
 
 class ManualMacroDiscretePolicy(BasePolicy):
-    NORMAL_SPEED = 30
+    NORMAL_SPEED = 80
     ACC_FACTOR = 1.0 
     def __init__(self, control_object, random_seed):
         super(ManualMacroDiscretePolicy, self).__init__(control_object=control_object, random_seed=random_seed)
@@ -420,8 +422,11 @@ class ManualMacroDiscretePolicy(BasePolicy):
         self.inputs.watchWithModifiers('deccelerate', 's')
         self.inputs.watchWithModifiers('laneLeft', 'a')
         self.inputs.watchWithModifiers('laneRight', 'd')
+        # self.heading_pid = PIDController(1.7, 0.01, 3.5)
+        # self.lateral_pid = PIDController(0.3, .002, 0.05)
+
         self.heading_pid = PIDController(1.7, 0.01, 3.5)
-        self.lateral_pid = PIDController(0.3, .002, 0.05)
+        self.lateral_pid = PIDController(0.2, .002, 0.3)
         self.DELTA_SPEED = 5
         self.DELTA = 10
         self.target_lane = self.get_neighboring_lanes()[1]
@@ -430,7 +435,10 @@ class ManualMacroDiscretePolicy(BasePolicy):
         
     def act(self, *args, **kwargs):
         lanes = self.get_neighboring_lanes()
-        # print('vel: {}'.format(self.control_object.velocity))
+        #print(self.control_object.velocity)
+        if(self.control_object.arrive_destination):
+            self.control_object.zt_succ = True
+        #print('vel: {}'.format(self.control_object.velocity))
         if(len(args) >= 2):
             macro_action = args[1]
             # print('macro_control: {}'.format(macro_action))
@@ -557,7 +565,7 @@ class ManualMacroDiscretePolicy(BasePolicy):
         long, lat = target_lane.local_coordinates(ego_vehicle.position)
         lane_heading = target_lane.heading_theta_at(long + 1)
         v_heading = ego_vehicle.heading_theta
-        steering = self.heading_pid.get_result(wrap_to_pi(lane_heading - v_heading))
+        steering = self.heading_pid.get_result(wrap_to_pi(lane_heading - v_heading)) * 1.5
         steering += self.lateral_pid.get_result(-lat)
         return float(steering)
     
