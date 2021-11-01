@@ -128,6 +128,7 @@ class BaseVehicle(BaseObject, BaseVehicleState):
         assert engine_initialized(), "Please make sure game engine is successfully initialized!"
 
         self.zt_succ = False
+        self.zt_crash = False
 
         # NOTE: it is the game engine, not vehicle drivetrain
         self.engine = get_engine()

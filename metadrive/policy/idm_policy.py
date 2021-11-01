@@ -169,7 +169,7 @@ class IDMPolicy(BasePolicy):
     MAX_SPEED = 100
 
     # Normal speed
-    NORMAL_SPEED = 80
+    NORMAL_SPEED = 50
 
     # Creep Speed
     CREEP_SPEED = 5

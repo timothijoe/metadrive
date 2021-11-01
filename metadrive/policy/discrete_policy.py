@@ -54,7 +54,8 @@ class DiscreteMetaAction(ActionType):
         1: 'IDLE',
         2: 'LANE_RIGHT',
         3: 'FASTER',
-        4: 'SLOWER'
+        4: 'SLOWER',
+        5: 'Holdon'
     }
     def __init__(self, **kwargs):
         self.actions = self.ACTIONS_ALL

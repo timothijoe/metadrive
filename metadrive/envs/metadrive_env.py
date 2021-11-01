@@ -167,6 +167,10 @@ class MetaDriveEnv(BaseEnv):
             done = True
             logging.info("Episode ended! Reason: arrive_dest.")
             done_info[TerminationState.SUCCESS] = True
+        elif vehicle.zt_crash:
+            done = True
+            logging.info("Episode ended! Reason: crash vehicle ")
+            done_info[TerminationState.CRASH_VEHICLE] = True
         if self._is_out_of_road(vehicle):
             done = True
             logging.info("Episode ended! Reason: out_of_road.")

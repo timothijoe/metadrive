@@ -43,12 +43,15 @@ if __name__ == "__main__":
         else:
             assert isinstance(o, np.ndarray)
             print("The observation is an numpy array with shape: ", o.shape)
-        for i in range(1, 1000000000):
+            i = 0
+        for j in range(1, 1000000000):
+            i += 1
             # print(env.action_type.actions_indexes["LANE_LEFT"])
-            if i %2 == 0:
-                action_zt = env.action_type.actions_indexes["IDLE"]
+
             
-            elif i < 8:
+            # if i < 10:
+            #     action_zt = env.action_type.actions_indexes["Holdon"]
+            if i %2 == 0:
                 action_zt = env.action_type.actions_indexes["IDLE"]
             elif (i+1) % 4 == 0:
                 action_zt = env.action_type.actions_indexes["LANE_LEFT"]
@@ -56,8 +59,9 @@ if __name__ == "__main__":
                 action_zt = env.action_type.actions_indexes["LANE_RIGHT"]
 
             #action_zt = env.action_type.actions_indexes["LANE_LEFT"] if i % 2 ==0 else env.action_type.actions_indexes["LANE_RIGHT"]
-            o, r, d, info = env.zt_step(action_zt)
+            o, r, d, info = env.step(action_zt)
             print(' i = {}'.format(i))
+            # print('o.shape: {}'.format(o.shape))
             #print(o)
             #o, r, d, info = env.zt_step(env.action_type.actions_indexes["LANE_RIGHT"])
             env.render(
@@ -65,8 +69,9 @@ if __name__ == "__main__":
                     "Auto-Drive (Switch mode: T)": "on" if env.current_track_vehicle.expert_takeover else "off",
                 }
             )
-            if d and info["arrive_dest"]:
+            if d or info["arrive_dest"]:
                 env.reset()
+                i = 0
                 env.current_track_vehicle.expert_takeover = True
     except:
         pass

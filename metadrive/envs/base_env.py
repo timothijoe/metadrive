@@ -212,9 +212,12 @@ class BaseEnv(gym.Env):
 
     def step(self, actions: Union[np.ndarray, Dict[AnyStr, np.ndarray]]):
         self.episode_steps += 1
+        #print('the di engine action is: {}'.format(actions))
         macro_actions = self._preprocess_macro_actions(actions)
+        print('output action: {}'.format(self.action_type.actions[int(actions)]))
         step_infos = self._step_macro_simulator(macro_actions)   
         o, r, d, i = self._get_step_return(actions, step_infos)
+        o = np.resize(o, (3,200,200))
         return o, r, d, i
 
     def zt_step(self, actions: Union[np.ndarray, Dict[AnyStr, np.ndarray]]):
@@ -222,11 +225,16 @@ class BaseEnv(gym.Env):
         macro_actions = self._preprocess_macro_actions(actions)
         step_infos = self._step_macro_simulator(macro_actions)   
         o, r, d, i = self._get_step_return(actions, step_infos)
+        o = np.resize(o, (3,200,200))
         return o, r, d, i
         
+    
     def _preprocess_macro_actions(self, actions: Union[np.ndarray, Dict[AnyStr, np.ndarray]]) \
             -> Union[np.ndarray, Dict[AnyStr, np.ndarray]]:
         if not self.is_multi_agent:
+            # print('action.dtype: {}'.format(type(actions)))
+            #print('action: {}'.format(actions))
+            actions = int(actions)
             actions = {v_id: actions for v_id in self.vehicles.keys()}
         else:
             if self.config["vehicle_config"]["action_check"]:
@@ -282,6 +290,7 @@ class BaseEnv(gym.Env):
         policy_frequency = 1 
         frames = int(simulation_frequency / policy_frequency)
         self.time = 0
+        #print('di action pairs: {}'.format(actions))
         actions = {vid: self.action_type.actions[vvalue] for vid, vvalue in actions.items()}
         for frame in range(frames):
             if self.time % int(simulation_frequency / policy_frequency) == 0:
@@ -370,7 +379,20 @@ class BaseEnv(gym.Env):
             self.observations[v_id].reset(self, v)
             ret[v_id] = self.observations[v_id].observe(v)
             v.zt_succ = False
-        return ret if self.is_multi_agent else self._wrap_as_single_agent(ret)
+            v.zt_crash = False
+        zt_obs = None 
+        
+        #used in single agent
+        for i in range(10):
+            o, r, d, info = self.zt_step(self.action_type.actions_indexes["Holdon"])    
+            print('initializing: {:.2%}, wait for other cars to run their default speed'.format((i+1)/10))        
+        for i in range(4):
+            action_zt =self.zt_step(self.action_type.actions_indexes["IDLE"])
+            zt_obs = o
+            print('initializing{:.2%}, wait to run ego car with default speed'.format((i+1)/4))
+
+        #return ret if self.is_multi_agent else self._wrap_as_single_agent(ret)
+        return zt_obs
 
     def _get_step_return(self, actions, step_infos):
         # update obs, dones, rewards, costs, calculate done at first !

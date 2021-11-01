@@ -413,7 +413,7 @@ class ManualControllableIDMPolicy(IDMPolicy):
             return super(ManualControllableIDMPolicy, self).act(agent_id)
 
 class ManualMacroDiscretePolicy(BasePolicy):
-    NORMAL_SPEED = 80
+    NORMAL_SPEED = 65
     ACC_FACTOR = 1.0 
     def __init__(self, control_object, random_seed):
         super(ManualMacroDiscretePolicy, self).__init__(control_object=control_object, random_seed=random_seed)
@@ -430,7 +430,8 @@ class ManualMacroDiscretePolicy(BasePolicy):
         self.DELTA_SPEED = 5
         self.DELTA = 10
         self.target_lane = self.get_neighboring_lanes()[1]
-        self.target_speed = self.NORMAL_SPEED           
+        self.target_speed = self.NORMAL_SPEED   
+        self.stop_label = True        
         
         
     def act(self, *args, **kwargs):
@@ -438,6 +439,9 @@ class ManualMacroDiscretePolicy(BasePolicy):
         #print(self.control_object.velocity)
         if(self.control_object.arrive_destination):
             self.control_object.zt_succ = True
+        if(self.control_object.crash_vehicle):
+            self.control_object.zt_crash = True 
+
         #print('vel: {}'.format(self.control_object.velocity))
         if(len(args) >= 2):
             macro_action = args[1]
@@ -446,6 +450,8 @@ class ManualMacroDiscretePolicy(BasePolicy):
         # agent_id = args[0]
         # macro_action = args[1]
         #print('macro_control: {}'.format(macro_action))
+        if macro_action != "Holdon" and macro_action is not None:
+            self.stop_label = False
         if macro_action == "FASTER":
             self.target_speed += self.DELTA_SPEED
         elif macro_action == "SLOWER":
@@ -459,6 +465,7 @@ class ManualMacroDiscretePolicy(BasePolicy):
             if right_lane is not None:
                 self.target_lane = right_lane
         elif macro_action == "IDLE":
+            self.target_speed = self.NORMAL_SPEED
             current_lane = lanes[1]
             self.target_lane = current_lane 
         else:
@@ -468,6 +475,8 @@ class ManualMacroDiscretePolicy(BasePolicy):
         
         steering = self.steering_control(self.target_lane)
         throtle_brake = self.speed_control(self.target_speed)
+        throtle_brake = throtle_brake if self.stop_label == False else -1
+        #print('throtle_brake: {}'.format(throtle_brake))
         return [steering, throtle_brake]
         
         # steering = 0.0
@@ -571,7 +580,7 @@ class ManualMacroDiscretePolicy(BasePolicy):
     
     def speed_control(self, target_speed):
         ego_vehicle = self.control_object
-        ego_target_speed = not_zero(target_speed)
+        ego_target_speed = not_zero(target_speed, 0.001)
         acceleration = self.ACC_FACTOR * (1 - np.power(max(ego_vehicle.speed, 0) / ego_target_speed, self.DELTA))
         return acceleration 
 
