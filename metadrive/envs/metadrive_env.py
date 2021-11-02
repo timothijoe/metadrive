@@ -24,12 +24,13 @@ pregenerated_map_file = osp.join(
 METADRIVE_DEFAULT_CONFIG = dict(
     # ===== Generalization =====
     start_seed=0,
-    environment_num=1,
+    environment_num=10,
+    use_render=False,
 
     # ===== Map Config =====
-    map=3,  # int or string: an easy way to fill map_config
-    random_lane_width=False,
-    random_lane_num=False,
+    map=20,  # int or string: an easy way to fill map_config
+    random_lane_width=True,
+    random_lane_num=True,
     map_config={
         BaseMap.GENERATE_TYPE: MapGenerateMethod.BIG_BLOCK_NUM,
         BaseMap.GENERATE_CONFIG: None,  # it can be a file path / block num / block ID sequence
@@ -37,6 +38,7 @@ METADRIVE_DEFAULT_CONFIG = dict(
         BaseMap.LANE_NUM: 3,
         "exit_length": 50,
     },
+    random_agent_model=True,
 
     # ===== Observation =====
     use_topdown=False,  # Use top-down view
@@ -99,7 +101,7 @@ METADRIVE_DEFAULT_CONFIG = dict(
     out_of_road_cost=1.0,
 
     # ===== Termination Scheme =====
-    out_of_route_done=False,
+    out_of_route_done=True,
 )
 
 

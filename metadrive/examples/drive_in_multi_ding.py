@@ -1,5 +1,5 @@
 from ding.config import compile_config
-from ding.envs import BaseEnvManager, DingEnvWrapper
+from ding.envs import BaseEnvManager, DingEnvWrapper, AsyncSubprocessEnvManager
 from ding.model import DQN
 from ding.policy import DQNPolicy
 from ding.worker import BaseLearner, SampleCollector, BaseSerialEvaluator, AdvancedReplayBuffer, NaiveReplayBuffer
@@ -12,12 +12,15 @@ from tensorboardX import SummaryWriter
 import os
 from ding.rl_utils import get_epsilon_greedy_fn
 cartpole_dqn_config = dict(
-    exp_name='cartpole_dqn',
+    exp_name='cartpole_dqn_multi',
     env=dict(
-        collector_env_num=1,
+        collector_env_num=2,
         evaluator_env_num=1,
         n_evaluator_episode=5,
         stop_value=195,
+        # manager=dict(
+        #     reset_timeout = 600,
+        # )
     ),
     policy=dict(
         cuda=False,
@@ -42,7 +45,7 @@ cartpole_dqn_config = dict(
                 end=0.1,
                 decay=10000,
             ),
-            replay_buffer=dict(replay_buffer_size=10000, ),
+            replay_buffer=dict(replay_buffer_size=20000, ),
         ),
     ),
 )
@@ -55,7 +58,7 @@ def wrapped_cartpole_env():
 def main(cfg, seed=0):
     cfg = compile_config(
         cfg,
-        BaseEnvManager,
+        AsyncSubprocessEnvManager,
         DQNPolicy,
         BaseLearner,
         SampleCollector,
@@ -64,8 +67,8 @@ def main(cfg, seed=0):
         save_cfg=True
     )
     collector_env_num, evaluator_env_num = cfg.env.collector_env_num, cfg.env.evaluator_env_num
-    collector_env = BaseEnvManager(env_fn=[wrapped_cartpole_env for _ in range(collector_env_num)], cfg=cfg.env.manager)
-    #evaluator_env = BaseEnvManager(env_fn=[wrapped_cartpole_env for _ in range(evaluator_env_num)], cfg=cfg.env.manager)
+    collector_env = AsyncSubprocessEnvManager(env_fn=[wrapped_cartpole_env for _ in range(collector_env_num)], cfg=cfg.env.manager)
+    #evaluator_env = AsyncSubprocessEnvManager(env_fn=[wrapped_cartpole_env for _ in range(evaluator_env_num)], cfg=cfg.env.manager)
     print('zt')
 
     #Set random seed for all package and instance

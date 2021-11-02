@@ -22,7 +22,7 @@ cartpole_dqn_config = dict(
     policy=dict(
         cuda=False,
         model=dict(
-            obs_shape=[3,200,200],
+            obs_shape=[3, 200,200],
             action_shape=5,
             encoder_hidden_size_list=[128, 128, 64],
             dueling=True,
@@ -32,6 +32,11 @@ cartpole_dqn_config = dict(
         learn=dict(
             batch_size=64,
             learning_rate=0.001,
+            learner = dict(
+                hook=dict(
+                    load_ckpt_before_run='/home/SENSETIME/zhoutong/lodge/metadrive/cartpole_dqn12/ckpt/iteration_20000.pth.tar'
+                )
+            )
         ),
         collect=dict(n_sample=8),
         eval=dict(evaluator=dict(eval_freq=50, )),
@@ -76,6 +81,9 @@ def main(cfg, seed=0):
     # # Set up RL Policy
     model = DQN(**cfg.policy.model)
     policy = DQNPolicy(cfg.policy, model=model)
+    # import torch
+    # state_dict = torch.load('/home/SENSETIME/zhoutong/lodge/metadrive/cartpole_dqn12/ckpt/iteration_20000.pth.tar', map_location='cpu')
+    # policy.eval_mode.load_state_dict(state_dict)
 
     # Set up collection, training and evaluation utilities
     tb_logger = SummaryWriter(os.path.join('./{}/log/'.format(cfg.exp_name), 'serial'))

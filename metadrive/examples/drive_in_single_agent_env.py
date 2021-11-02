@@ -15,16 +15,16 @@ from metadrive.constants import HELP_MESSAGE
 
 if __name__ == "__main__":
     config = dict(
-        # controller="joystick",
+        # # controller="joystick",
         use_render=True,
-        manual_control=True,
-        traffic_density=0.1,
-        environment_num=10,
-        random_agent_model=True,
-        random_lane_width=True,
-        random_lane_num=True,
-        map=20,  # seven block
-        start_seed=random.randint(0, 1000)
+        # manual_control=True,
+        # traffic_density=0.1,
+        # environment_num=10,
+        # random_agent_model=True,
+        # random_lane_width=True,
+        # random_lane_num=True,
+        # map=20,  # seven block
+        # start_seed=random.randint(0, 1000)
     )
     parser = argparse.ArgumentParser()
     #parser.add_argument("--observation", type=str, default="lidar", choices=["lidar", "rgb_camera"])
@@ -64,15 +64,17 @@ if __name__ == "__main__":
             # print('o.shape: {}'.format(o.shape))
             #print(o)
             #o, r, d, info = env.zt_step(env.action_type.actions_indexes["LANE_RIGHT"])
-            env.render(
-                text={
-                    "Auto-Drive (Switch mode: T)": "on" if env.current_track_vehicle.expert_takeover else "off",
-                }
-            )
+            # env.render(
+            #     text={
+            #         "Auto-Drive (Switch mode: T)": "on" if env.current_track_vehicle.expert_takeover else "off",
+            #     }
+            # )
             if d or info["arrive_dest"]:
                 env.reset()
+                print('reset hhh')
                 i = 0
-                env.current_track_vehicle.expert_takeover = True
+                #env.current_track_vehicle.expert_takeover = True
+            print('j = {}'.format(j))
     except:
         pass
     finally:

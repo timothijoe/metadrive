@@ -1,0 +1,19 @@
+[2021-11-02 18:02:52,037][advanced_buffer.py][line: 233][    INFO] Refuse to sample due to -- 
+staleness: True, Remove 0 elements due to staleness. Not enough for sampling. valid(8) / sample(64) < sample_min_limit_ratio(1) 
+thruput: False, Always can sample because push_sample_rate_limit['min'] == 0
+[2021-11-02 18:03:08,197][advanced_buffer.py][line: 233][    INFO] Refuse to sample due to -- 
+staleness: True, Remove 0 elements due to staleness. Not enough for sampling. valid(16) / sample(64) < sample_min_limit_ratio(1) 
+thruput: False, Always can sample because push_sample_rate_limit['min'] == 0
+[2021-11-02 18:03:22,197][advanced_buffer.py][line: 233][    INFO] Refuse to sample due to -- 
+staleness: True, Remove 0 elements due to staleness. Not enough for sampling. valid(24) / sample(64) < sample_min_limit_ratio(1) 
+thruput: False, Always can sample because push_sample_rate_limit['min'] == 0
+[2021-11-02 18:03:35,987][advanced_buffer.py][line: 233][    INFO] Refuse to sample due to -- 
+staleness: True, Remove 0 elements due to staleness. Not enough for sampling. valid(32) / sample(64) < sample_min_limit_ratio(1) 
+thruput: False, Always can sample because push_sample_rate_limit['min'] == 0
+[2021-11-02 18:03:37,510][       utils.py][line: 159][    INFO] In the past 60.1 seconds, buffer statistics is as follows:
+[2021-11-02 18:03:37,512][       utils.py][line: 166][    INFO] 
++-------+-----------+-------------+----------+--------------+
+| Name  | pushed_in | sampled_out | removed  | current_have |
++-------+-----------+-------------+----------+--------------+
+| Value | 32.000000 | 0.000000    | 0.000000 | 32.000000    |
++-------+-----------+-------------+----------+--------------+

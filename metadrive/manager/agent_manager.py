@@ -28,6 +28,8 @@ class AgentManager(BaseManager):
         """
         The real init is happened in self.init(), in which super().__init__() will be called
         """
+
+        
         # BaseVehicles which can be controlled by policies when env.step() called
         self._active_objects = {}
         # BaseVehicles which will be recycled after the delay_done time
@@ -44,6 +46,7 @@ class AgentManager(BaseManager):
             agent_id: single_obs.observation_space
             for agent_id, single_obs in init_observations.items()
         }
+        
         assert isinstance(init_action_space, dict)
         assert isinstance(observation_space, dict)
         self._init_observation_spaces = observation_space
@@ -51,11 +54,13 @@ class AgentManager(BaseManager):
         self.observation_spaces = copy.copy(observation_space)
         self.action_spaces = copy.copy(init_action_space)
 
+
         # this map will be override when the env.init() is first called and vehicles are made
         self._agent_to_object = {k: k for k in self.observations.keys()}  # no target vehicles created, fake init
         self._object_to_agent = {k: k for k in self.observations.keys()}  # no target vehicles created, fake init
 
         # get the value in init()
+        
         self._allow_respawn = None
         self._debug = None
         self._delay_done = None

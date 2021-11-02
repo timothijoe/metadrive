@@ -122,6 +122,7 @@ class BaseEnv(gym.Env):
         merged_config = self._merge_extra_config(config)
         global_config = self._post_process_config(merged_config)
         self.config = global_config
+        
 
         # agent check
         self.num_agents = self.config["num_agents"]
@@ -131,15 +132,22 @@ class BaseEnv(gym.Env):
         assert isinstance(self.num_agents, int) and (self.num_agents > 0 or self.num_agents == -1)
 
         # observation and action space
+
         self.agent_manager = AgentManager(
             init_observations=self._get_observations(), init_action_space=self._get_action_space()
         )
 
+
+
         self.action_type = DiscreteMetaAction()
-        self.action_spaces = self.action_type.space()
+        self.action_space = self.action_type.space()
         self.time = 0 
+        self.zt_inited = False
+
+
 
         # map setting
+        
         self.start_seed = self.config["start_seed"]
         self.env_num = self.config["environment_num"]
 
@@ -153,6 +161,8 @@ class BaseEnv(gym.Env):
         self.dones = None
         self.episode_rewards = defaultdict(float)
         self.episode_lengths = defaultdict(int)
+
+
 
     def _merge_extra_config(self, config: Union[dict, "Config"]) -> "Config":
         """Check, update, sync and overwrite some config."""
@@ -193,6 +203,10 @@ class BaseEnv(gym.Env):
         # It is the true init() func to create the main vehicle and its module, to avoid incompatible with ray
         if engine_initialized():
             return
+        # if self.zt_inited == False:
+        #     self.zt_inited = True 
+        # else:
+        #     return
         self.engine = initialize_engine(self.config)
         # engine setup
         self.setup_engine()
@@ -211,13 +225,15 @@ class BaseEnv(gym.Env):
         return o, r, d, i
 
     def step(self, actions: Union[np.ndarray, Dict[AnyStr, np.ndarray]]):
+        print('ztt')
         self.episode_steps += 1
         #print('the di engine action is: {}'.format(actions))
         macro_actions = self._preprocess_macro_actions(actions)
         print('output action: {}'.format(self.action_type.actions[int(actions)]))
         step_infos = self._step_macro_simulator(macro_actions)   
         o, r, d, i = self._get_step_return(actions, step_infos)
-        o = np.resize(o, (3,200,200))
+        #o = np.resize(o, (3,200,200))
+        o = o.transpose((2,0,1))
         return o, r, d, i
 
     def zt_step(self, actions: Union[np.ndarray, Dict[AnyStr, np.ndarray]]):
@@ -225,7 +241,7 @@ class BaseEnv(gym.Env):
         macro_actions = self._preprocess_macro_actions(actions)
         step_infos = self._step_macro_simulator(macro_actions)   
         o, r, d, i = self._get_step_return(actions, step_infos)
-        o = np.resize(o, (3,200,200))
+        o = o.transpose((2,0,1))
         return o, r, d, i
         
     
@@ -358,9 +374,12 @@ class BaseEnv(gym.Env):
         :param force_seed: The seed to set the env.
         :return: None
         """
+        print('before lazy init')
         self.lazy_init()  # it only works the first time when reset() is called to avoid the error when render
         self._reset_global_seed(force_seed)
+        print('after lazy init')
         self.engine.reset()
+        print('after engine reset')
         if self._top_down_renderer is not None:
             self._top_down_renderer.reset(self.current_map)
 
@@ -369,29 +388,38 @@ class BaseEnv(gym.Env):
         self.episode_rewards = defaultdict(float)
         self.episode_lengths = defaultdict(int)
         assert (len(self.vehicles) == self.num_agents) or (self.num_agents == -1)
+        print('after vehicles reset')
 
         return self._get_reset_return()
 
     def _get_reset_return(self):
         ret = {}
         self.engine.after_step()
+        print('after engine agter reset')
+        zt_obs = None
         for v_id, v in self.vehicles.items():
             self.observations[v_id].reset(self, v)
             ret[v_id] = self.observations[v_id].observe(v)
+            zt_obs = self.observations[v_id].observe(v)
             v.zt_succ = False
             v.zt_crash = False
-        zt_obs = None 
+        zt_obs = zt_obs.transpose((2,0,1))
+        print('zhoutong obs shape: {}'.format(zt_obs.shape))
+         
         
         #used in single agent
-        for i in range(10):
-            o, r, d, info = self.zt_step(self.action_type.actions_indexes["Holdon"])    
-            print('initializing: {:.2%}, wait for other cars to run their default speed'.format((i+1)/10))        
-        for i in range(4):
-            action_zt =self.zt_step(self.action_type.actions_indexes["IDLE"])
-            zt_obs = o
-            print('initializing{:.2%}, wait to run ego car with default speed'.format((i+1)/4))
+        # print('initializing: a new episode begins')  
+        # for i in range(10):
+        #     o, r, d, info = self.zt_step(self.action_type.actions_indexes["Holdon"])    
+        #     #print('initializing: {:.2%}, wait for other cars to run their default speed'.format((i+1)/10))     
+        #     # ztinit   
+        # for i in range(4):
+        #     action_zt =self.zt_step(self.action_type.actions_indexes["IDLE"])
+        #     zt_obs = o
+        #     print('initializing{:.2%}, wait to run ego car with default speed'.format((i+1)/4))
 
         #return ret if self.is_multi_agent else self._wrap_as_single_agent(ret)
+        #print('zt_obs: {}'.format(zt_obs.shape))
         return zt_obs
 
     def _get_step_return(self, actions, step_infos):
@@ -501,7 +529,7 @@ class BaseEnv(gym.Env):
             return gym.spaces.Dict(ret)
 
     @property
-    def action_space(self) -> gym.Space:
+    def action_space1(self) -> gym.Space:
         """
         Return observation spaces of active and controllable vehicles
         :return: Dict
