@@ -10,7 +10,7 @@ from tensorboardX import SummaryWriter
 from ding.model import DQN
 from ding.policy import DQNPolicy
 from ding.config import compile_config
-from ding.worker import BaseLearner, SampleCollector, BaseSerialEvaluator, NaiveReplayBuffer, AdvancedReplayBuffer
+from ding.worker import BaseLearner, SampleSerialCollector, InteractionSerialEvaluator, NaiveReplayBuffer, AdvancedReplayBuffer
 from ding.envs import BaseEnvManager, DingEnvWrapper
 from ding.policy import PPOPolicy
 from ding.model import VAC
@@ -35,23 +35,23 @@ def main(cfg, seed=0, max_iterations=int(1e10)):
         AsyncSubprocessEnvManager,
         DQNPolicy,
         BaseLearner,
-        SampleCollector,
-        BaseSerialEvaluator, 
+        SampleSerialCollector,
+        InteractionSerialEvaluator, 
         AdvancedReplayBuffer, 
         save_cfg=True
     )
-    collector_env_num =2
+    collector_env_num =3
     evaluator_env_num = 1
-    collector_cfg = dict(use_render=False)
+    collector_cfg = dict(use_render=True)
     evaluator_cfg = dict()
     collector_env = AsyncSubprocessEnvManager(
         env_fn=[lambda: dingMetaDriveEnv(cfg.env, collector_cfg) for _ in range(collector_env_num)], cfg=cfg.env.manager
     )
     # evaluator_env = SyncSubprocessEnvManager(env_fn=[wrapped_ppo_env for _ in range(evaluator_env_num)], cfg=cfg.env.manager)
 
-    evaluator_env = AsyncSubprocessEnvManager(
-        env_fn=[lambda: dingMetaDriveEnv(cfg.env, evaluator_cfg) for _ in range(evaluator_env_num)], cfg=cfg.env.manager
-    )
+    # evaluator_env = AsyncSubprocessEnvManager(
+    #     env_fn=[lambda: dingMetaDriveEnv(cfg.env, evaluator_cfg) for _ in range(evaluator_env_num)], cfg=cfg.env.manager
+    # )
     collector_env.seed(cfg.env.collector_start_seed)
     #evaluator_env.seed(cfg.env.evaluator_start_seed,) # dynamic_seed=False)
     set_pkg_seed(cfg.env.pkg_seed, use_cuda=cfg.policy.cuda)
@@ -65,7 +65,7 @@ def main(cfg, seed=0, max_iterations=int(1e10)):
     # collector = PGDriveSampleCollector(
     #     cfg.policy.collect.collector, collector_env, policy.collect_mode, tb_logger
     # )
-    collector = SampleCollector(
+    collector = SampleSerialCollector(
         cfg.policy.collect.collector, collector_env, policy.collect_mode, tb_logger
     )
     # MUST HAVE !
@@ -73,9 +73,9 @@ def main(cfg, seed=0, max_iterations=int(1e10)):
     # evaluator = PGDriveSerialEvaluator(
     #     cfg.policy.eval.evaluator, evaluator_env, policy.eval_mode, tb_logger
     # )
-    evaluator = BaseSerialEvaluator(
-        cfg.policy.eval.evaluator, evaluator_env, policy.eval_mode, tb_logger
-    )
+    # evaluator = InteractionSerialEvaluator(
+    #     cfg.policy.eval.evaluator, evaluator_env, policy.eval_mode, tb_logger
+    # )
 
     replay_buffer = AdvancedReplayBuffer(cfg.policy.other.replay_buffer, tb_logger, exp_name=cfg.exp_name)
     eps_cfg = cfg.policy.other.eps
@@ -85,8 +85,8 @@ def main(cfg, seed=0, max_iterations=int(1e10)):
     for iter in range(max_iterations):
         # if evaluator.should_eval(learner.train_iter):
         #     # evaluator.reset_env(evaluator_env)
-        stop, reward = evaluator.eval(learner.save_checkpoint, learner.train_iter, collector.envstep)
-        print(f'eva in {iter} iters, reward is {reward}')
+        # stop, reward = evaluator.eval(learner.save_checkpoint, learner.train_iter, collector.envstep)
+        # print(f'eva in {iter} iters, reward is {reward}')
             # if stop:
             #     break
         #     # evaluator.close()

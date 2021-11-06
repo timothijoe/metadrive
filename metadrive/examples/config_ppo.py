@@ -9,9 +9,10 @@ metadrive_dqn_config = dict(
         norm_obs=False,
         norm_reward=False,
         #use_act_scale=True,
-        collector_env_num=5,
+        collector_env_num=10,
+        evaluator_env_num=5,
         n_evaluator_episode=20,
-        stop_value=1,
+        stop_value=195,
         collector_start_seed=999,
         pkg_seed=1023,
     ),
@@ -36,13 +37,17 @@ metadrive_dqn_config = dict(
             #epoch_per_collect=20,
             batch_size=64,
             learning_rate=1e-3,
+            update_per_collect=100,
+            # hook=dict(
+            #         load_ckpt_before_run='/home/SENSETIME/zhoutong/hoffnung/metadrive/ckpt/iteration_20000.pth.tar',
+            #     ),
             #value_weight=0.5,
             #entropy_weight=0.01,
             #clip_ratio=0.2,
         ),
         collect=dict(
             # seems very imp 1024 can achieve 100+
-            n_sample=8,
+            n_sample=1000,
             # unroll_len=1,
             # discount_factor=0.99,
             # gae_lambda=0.97,
@@ -50,7 +55,7 @@ metadrive_dqn_config = dict(
             #     transform_obs = True,
             # )
         ),
-        eval=dict(evaluator=dict(eval_freq=2000, )),
+        eval=dict(evaluator=dict(eval_freq=50, )),
         other=dict(
             eps=dict(
                 type='exp',

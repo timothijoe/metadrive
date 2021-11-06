@@ -214,6 +214,7 @@ class TopDownObservation(ObservationBase):
     @property
     def observation_space(self):
         shape = self.obs_shape + (self.num_stacks, )
+        #shape = (self.num_stacks,) + self.obs_shape 
         if self.rgb_clip:
             return gym.spaces.Box(-0.0, 1.0, shape=shape, dtype=np.float32)
         else:

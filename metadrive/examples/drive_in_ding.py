@@ -2,7 +2,7 @@ from ding.config import compile_config
 from ding.envs import BaseEnvManager, DingEnvWrapper
 from ding.model import DQN
 from ding.policy import DQNPolicy
-from ding.worker import BaseLearner, SampleCollector, BaseSerialEvaluator, AdvancedReplayBuffer, NaiveReplayBuffer
+from ding.worker import BaseLearner, SampleSerialCollector, InteractionSerialEvaluator, AdvancedReplayBuffer, NaiveReplayBuffer
 from dizoo.classic_control.cartpole.config.cartpole_dqn_config import cartpole_dqn_config
 import gym
 import metadrive
@@ -58,8 +58,8 @@ def main(cfg, seed=0):
         BaseEnvManager,
         DQNPolicy,
         BaseLearner,
-        SampleCollector,
-        BaseSerialEvaluator,
+        SampleSerialCollector,
+        InteractionSerialEvaluator,
         AdvancedReplayBuffer,
         save_cfg=True
     )
@@ -80,10 +80,10 @@ def main(cfg, seed=0):
     # Set up collection, training and evaluation utilities
     tb_logger = SummaryWriter(os.path.join('./{}/log/'.format(cfg.exp_name), 'serial'))
     learner = BaseLearner(cfg.policy.learn.learner, policy.learn_mode, tb_logger, exp_name=cfg.exp_name)
-    collector = SampleCollector(
+    collector = SampleSerialCollector(
         cfg.policy.collect.collector, collector_env, policy.collect_mode, tb_logger, exp_name=cfg.exp_name
     )
-    # evaluator = BaseSerialEvaluator(
+    # evaluator = InteractionSerialEvaluator(
     #     cfg.policy.eval.evaluator, evaluator_env, policy.eval_mode, tb_logger, exp_name=cfg.exp_name
     # )
     replay_buffer = AdvancedReplayBuffer(cfg.policy.other.replay_buffer, tb_logger, exp_name=cfg.exp_name)
