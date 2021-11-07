@@ -290,7 +290,17 @@ class MetaDriveEnv(BaseEnv):
         #     o = ImageStateObservation(vehicle_config)
         # else:
         #     o = LidarStateObservation(vehicle_config)
-        o = TopDownObservation(vehicle_config, self, False)
+        #o = TopDownObservation(vehicle_config, self, False)
+        o = TopDownMultiChannel(
+            vehicle_config,
+            self,
+            self.config["rgb_clip"],
+            frame_stack=3,
+            post_stack=5,
+            frame_skip = 5,
+            resolution=(200, 200),
+            max_distance=30
+        )
         #o = TopDownMultiChannel(vehicle_config, self, False)
         return o
 

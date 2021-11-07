@@ -60,7 +60,7 @@ if __name__ == "__main__":
 
             #action_zt = env.action_type.actions_indexes["LANE_LEFT"] if i % 2 ==0 else env.action_type.actions_indexes["LANE_RIGHT"]
             o, r, d, info = env.step(action_zt)
-            print(' i = {}'.format(i))
+            #print(' i = {}'.format(i))
             # print('o.shape: {}'.format(o.shape))
             #print(o)
             #o, r, d, info = env.zt_step(env.action_type.actions_indexes["LANE_RIGHT"])
@@ -74,7 +74,7 @@ if __name__ == "__main__":
                 print('reset hhh')
                 i = 0
                 #env.current_track_vehicle.expert_takeover = True
-            print('j = {}'.format(j))
+            #print('j = {}'.format(j))
     except:
         pass
     finally:

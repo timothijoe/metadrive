@@ -15,7 +15,7 @@ MetaDrive_INFO_DICT = {
     'MetaDrive-test-v0': BaseEnvInfo(
         agent_num=1,
         obs_space=EnvElementInfo(
-            shape=(3, 200, 200),
+            shape=(5, 200, 200),
             value={
                 # udpate in 8.11 night, maybe 0, 1
                 # 'min': np.float64("-inf"),

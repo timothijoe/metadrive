@@ -3,7 +3,7 @@ from ding.worker import replay_buffer
 from easydict import EasyDict
 
 metadrive_dqn_config = dict(
-    exp_name='zt_try_meta_engine',
+    exp_name='zt_multi_channel_try1',
     env=dict(
         env_id='MetaDrive-test-v0',
         norm_obs=False,
@@ -21,7 +21,7 @@ metadrive_dqn_config = dict(
         #on_policy=True,
         #continuous=True,
         model=dict(
-            obs_shape=(3,200,200),
+            obs_shape=(5,200,200),
             action_shape=5,
             encoder_hidden_size_list=[128, 128, 64],
             # critic_head_hidden_size=256,
