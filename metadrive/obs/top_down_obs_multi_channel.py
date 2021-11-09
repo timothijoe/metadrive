@@ -212,7 +212,7 @@ class TopDownMultiChannel(TopDownObservation):
         return img
 
     def observe(self, vehicle: BaseVehicle):
-        #self.render()
+        self.render()
         surface_dict = self.get_observation_window()
         surface_dict["road_network"] = pygame.transform.smoothscale(surface_dict["road_network"], self.resolution)
         img_dict = {k: pygame.surfarray.array3d(surface) for k, surface in surface_dict.items()}

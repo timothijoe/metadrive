@@ -296,8 +296,8 @@ class MetaDriveEnv(BaseEnv):
             self,
             self.config["rgb_clip"],
             frame_stack=3,
-            post_stack=5,
-            frame_skip = 5,
+            post_stack=10,
+            frame_skip = 1,
             resolution=(200, 200),
             max_distance=30
         )

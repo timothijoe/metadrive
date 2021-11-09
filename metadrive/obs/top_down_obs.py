@@ -91,14 +91,14 @@ class TopDownObservation(ObservationBase):
 
         self.draw_scene()
 
-        if self.onscreen:
-            self.screen.fill(COLOR_BLACK)
-            screen = self.obs_window.get_screen_window()
-            if screen.get_size() == self.screen.get_size():
-                self.screen.blit(screen, (0, 0))
-            else:
-                pygame.transform.scale2x(self.obs_window.get_screen_window(), self.screen)
-            pygame.display.flip()
+        # if self.onscreen:
+        #     self.screen.fill(COLOR_BLACK)
+        #     screen = self.obs_window.get_screen_window()
+        #     if screen.get_size() == self.screen.get_size():
+        #         self.screen.blit(screen, (0, 0))
+        #     else:
+        #         pygame.transform.scale2x(self.obs_window.get_screen_window(), self.screen)
+        #     pygame.display.flip()
 
     def get_screenshot(self, name="screenshot.png"):
         pygame.image.save(self.screen, name)
