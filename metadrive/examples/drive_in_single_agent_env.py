@@ -60,44 +60,29 @@ if __name__ == "__main__":
 
             #action_zt = env.action_type.actions_indexes["LANE_LEFT"] if i % 2 ==0 else env.action_type.actions_indexes["LANE_RIGHT"]
             o, r, d, info = env.step(action_zt)
-            import matplotlib.pyplot as plt 
-            fig = plt.figure(figsize=(20, 4))
-            import matplotlib.gridspec as gridspec
-            gs = gridspec.GridSpec(4, 20)
-            ax =fig.add_subplot(gs[:4,0:4])
-            bx =fig.add_subplot(gs[:4,4:8])
-            cx =fig.add_subplot(gs[:4,8:12])
-            dx =fig.add_subplot(gs[:4,12:16])
-            ex =fig.add_subplot(gs[:4,16:20])
-            ax.imshow(o[0])
-            bx.imshow(o[1])
-            cx.imshow(o[2])
-            dx.imshow(o[3])
-            ex.imshow(o[4])
+            # import matplotlib.pyplot as plt 
+            # fig = plt.figure(figsize=(20, 4))
+            # import matplotlib.gridspec as gridspec
+            # gs = gridspec.GridSpec(4, 20)
+            # ax =fig.add_subplot(gs[:4,0:4])
+            # bx =fig.add_subplot(gs[:4,4:8])
+            # cx =fig.add_subplot(gs[:4,8:12])
+            # dx =fig.add_subplot(gs[:4,12:16])
+            # ex =fig.add_subplot(gs[:4,16:20])
+            # ax.imshow(o[0])
+            # bx.imshow(o[1])
+            # cx.imshow(o[2])
+            # dx.imshow(o[3])
+            # ex.imshow(o[4])
 
-
-            # for zt in range(5):
-            #     fig.add_subplot(5,1,zt+1)
-            #     plt.imshow(o[zt])
-            plt.show(block=False)
-            plt.pause(0.5)
-            plt.close()
-
-
-
-
-            # fig.add_subplot(5, 1, 1)
-            # plt.imshow(o[0])
-            # plt.axis('off')
-            # plt.title("First")
-            #plt.show()
-            # plt.figure()
-            # f , axarr = plt.subplots(5,1)
-            # for zt in range(5):
-            #     axarr[zt].imshow(o[zt])
+            # plt.show(block=False)
+            # plt.pause(0.5)
+            # plt.close()
 
             for zt in range(5):
                 print('channel_{}.min is: {} and channel_{}.max is {}'.format(zt, o[zt].min(), zt, o[zt].max()))
+            zt_o2 = o[1]
+            print(zt_o2)
             #print(' i = {}'.format(i))
             # print('o.shape: {}'.format(o.shape))
             #print(o)

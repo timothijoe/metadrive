@@ -414,7 +414,7 @@ class BaseEnv(gym.Env):
             #print('initializing: {:.2%}, wait for other cars to run their default speed'.format((i+1)/10))     
             # ztinit   
         for i in range(4):
-            action_zt =self.zt_step(self.action_type.actions_indexes["IDLE"])
+            o, r, d, info =self.zt_step(self.action_type.actions_indexes["IDLE"])
             zt_obs = o
             #print('initializing{:.2%}, wait to run ego car with default speed'.format((i+1)/4))
 
