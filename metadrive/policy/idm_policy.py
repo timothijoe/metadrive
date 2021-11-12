@@ -7,7 +7,7 @@ from metadrive.policy.base_policy import BasePolicy
 from metadrive.policy.manual_control_policy import ManualControlPolicy
 from metadrive.utils.math_utils import not_zero, wrap_to_pi, point_distance
 from metadrive.utils.scene_utils import is_same_lane_index, is_following_lane_index
-
+import random
 
 class FrontBackObjects:
     def __init__(self, front_ret, back_ret, front_dist, back_dist):
@@ -180,7 +180,8 @@ class IDMPolicy(BasePolicy):
 
     def __init__(self, control_object, random_seed):
         super(IDMPolicy, self).__init__(control_object=control_object, random_seed=random_seed)
-        self.target_speed = self.NORMAL_SPEED
+        random.seed(random_seed)
+        self.target_speed = self.NORMAL_SPEED + random.randint(-10,10)
         self.routing_target_lane = None
         self.available_routing_index_range = None
         self.overtake_timer = self.np_random.randint(0, self.LANE_CHANGE_FREQ)

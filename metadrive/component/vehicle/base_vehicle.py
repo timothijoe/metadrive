@@ -174,6 +174,7 @@ class BaseVehicle(BaseObject, BaseVehicleState):
         self.steering = 0
         self.last_current_action = deque([(0.0, 0.0), (0.0, 0.0)], maxlen=2)
         self.last_position = (0, 0)
+        self.last_macro_position = self.last_position
         self.last_heading_dir = self.heading
         self.dist_to_left_side = None
         self.dist_to_right_side = None
@@ -257,6 +258,13 @@ class BaseVehicle(BaseObject, BaseVehicleState):
             self._set_action(action)
         return step_info
 
+    def before_macro_step(self, macro_action):
+        if macro_action is not None:
+            self.last_macro_position = self.position
+        else:
+            pass 
+        return 
+
     def after_step(self):
         if self.navigation is not None:
             self.lane, self.lane_index, = self.navigation.update_localization(self)
@@ -331,6 +339,7 @@ class BaseVehicle(BaseObject, BaseVehicleState):
         self.steering = 0
         self.last_current_action = deque([(0.0, 0.0), (0.0, 0.0)], maxlen=2)
         self.last_position = self.spawn_place
+        self.last_macro_position = self.last_position
         self.last_heading_dir = self.heading
 
         self.update_dist_to_left_right()

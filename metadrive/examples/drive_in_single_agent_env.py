@@ -79,10 +79,11 @@ if __name__ == "__main__":
             # plt.pause(0.5)
             # plt.close()
 
-            for zt in range(5):
-                print('channel_{}.min is: {} and channel_{}.max is {}'.format(zt, o[zt].min(), zt, o[zt].max()))
-            zt_o2 = o[1]
-            print(zt_o2)
+            # for zt in range(5):
+            #     print('channel_{}.min is: {} and channel_{}.max is {}'.format(zt, o[zt].min(), zt, o[zt].max()))
+            # zt_o2 = o[1]
+            # print(zt_o2)
+            print('reward is: {}'.format(r))
             #print(' i = {}'.format(i))
             # print('o.shape: {}'.format(o.shape))
             #print(o)

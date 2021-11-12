@@ -87,9 +87,9 @@ METADRIVE_DEFAULT_CONFIG = dict(
 
     # ===== Reward Scheme =====
     # See: https://github.com/decisionforce/metadrive/issues/283
-    success_reward=10.0,
+    success_reward=10.0, # 10.0
     out_of_road_penalty=5.0,
-    crash_vehicle_penalty=5.0,
+    crash_vehicle_penalty=10, #5.0
     crash_object_penalty=5.0,
     driving_reward=1.0,
     speed_reward=0.1,
@@ -236,7 +236,8 @@ class MetaDriveEnv(BaseEnv):
             current_lane = vehicle.navigation.current_ref_lanes[0]
             current_road = vehicle.current_road
             positive_road = 1 if not current_road.is_negative_road() else -1
-        long_last, _ = current_lane.local_coordinates(vehicle.last_position)
+        #long_last, _ = current_lane.local_coordinates(vehicle.last_position)
+        long_last, _ = current_lane.local_coordinates(vehicle.last_macro_position)
         long_now, lateral_now = current_lane.local_coordinates(vehicle.position)
 
         # reward for lane keeping, without it vehicle can learn to overtake but fail to keep in lane
@@ -244,18 +245,23 @@ class MetaDriveEnv(BaseEnv):
             lateral_factor = clip(1 - 2 * abs(lateral_now) / vehicle.navigation.get_current_lane_width(), 0.0, 1.0)
         else:
             lateral_factor = 1.0
+        lateral_factor *= 0.02
 
         reward = 0.0
-        reward += self.config["driving_reward"] * (long_now - long_last) * lateral_factor * positive_road
+        reward += self.config["driving_reward"] * (long_now - long_last) * lateral_factor * positive_road 
         reward += self.config["speed_reward"] * (vehicle.speed / vehicle.max_speed) * positive_road
 
         step_info["step_reward"] = reward
 
         if vehicle.arrive_destination:
             reward = +self.config["success_reward"]
+        elif vehicle.zt_succ:
+            reward = +self.config["success_reward"]
         elif self._is_out_of_road(vehicle):
             reward = -self.config["out_of_road_penalty"]
         elif vehicle.crash_vehicle:
+            reward = -self.config["crash_vehicle_penalty"]
+        elif vehicle.zt_crash:
             reward = -self.config["crash_vehicle_penalty"]
         elif vehicle.crash_object:
             reward = -self.config["crash_object_penalty"]

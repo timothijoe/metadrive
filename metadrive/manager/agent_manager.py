@@ -202,6 +202,7 @@ class AgentManager(BaseManager):
             #action = policy.act(agent_id, external_actions)
             step_infos[agent_id] = policy.get_action_info()
             step_infos[agent_id].update(self.get_agent(agent_id).before_step(action))
+            self.get_agent(agent_id).before_macro_step(macro_action)
 
         finished = set()
         for v_name in self._dying_objects.keys():
