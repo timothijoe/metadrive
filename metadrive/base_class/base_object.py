@@ -1,16 +1,20 @@
 import math
-
+import seaborn as sns
+from typing import Dict
+from metadrive.utils import get_np_random
 import numpy as np
+from panda3d.bullet import BulletWorld, BulletBodyNode
+from panda3d.core import LVector3
+from panda3d.core import NodePath
+
 from metadrive.base_class.base_runnable import BaseRunnable
+from metadrive.constants import ObjectState
 from metadrive.engine.asset_loader import AssetLoader
 from metadrive.engine.core.physics_world import PhysicsWorld
 from metadrive.utils import Vector
 from metadrive.utils.coordinates_shift import panda_position, metadrive_position, panda_heading, metadrive_heading
 from metadrive.utils.math_utils import clip
 from metadrive.utils.math_utils import norm
-from panda3d.bullet import BulletWorld, BulletBodyNode
-from panda3d.core import LVector3
-from panda3d.core import NodePath
 
 
 class PhysicsNodeList(list):
@@ -84,6 +88,12 @@ class BaseObject(BaseRunnable):
                 # It is closed before!
                 self.loader.__init__()
 
+        # add color setting for visualization
+        color = sns.color_palette("colorblind")
+        idx = get_np_random().randint(len(color))
+        rand_c = color[idx]
+        self.panda_color = rand_c
+
     def add_body(self, physics_body):
         if self._body is None:
             # add it to physics world, in which this object will interact with other object (like collision)
@@ -156,14 +166,17 @@ class BaseObject(BaseRunnable):
     def position(self):
         return metadrive_position(self.origin.getPos())
 
-    def set_velocity(self, direction: list, value: float):
+    def set_velocity(self, direction: list, value=None):
         """
         Set velocity for object including the direction of velocity and the value (speed)
         The direction of velocity will be normalized automatically, value decided its scale
         :param position: 2d array or list
         :param value: speed [m/s]
         """
-        norm_ratio = value / norm(direction[0], direction[1])
+        if value is not None:
+            norm_ratio = value / (norm(direction[0], direction[1]) + 1e-3)
+        else:
+            norm_ratio = 1
         self._body.setLinearVelocity(
             LVector3(direction[0] * norm_ratio, -direction[1] * norm_ratio,
                      self.origin.getPos()[-1])
@@ -215,5 +228,65 @@ class BaseObject(BaseRunnable):
         heading = Vector((math.cos(real_heading), math.sin(real_heading)))
         return heading
 
+    @property
+    def roll(self):
+        """
+        Return the roll of this object
+        """
+        return self.origin.getR()
+
+    def set_roll(self, roll):
+        self.origin.setR(roll)
+
+    @property
+    def pitch(self):
+        """
+        Return the pitch of this object
+        """
+        return self.origin.getP()
+
+    def set_pitch(self, pitch):
+        self.origin.setP(pitch)
+
     def set_static(self, flag):
         self.body.setStatic(flag)
+
+    def get_panda_pos(self):
+        return self.origin.getPos()
+
+    def set_panda_pos(self, pos):
+        self.origin.setPos(pos)
+
+    def get_state(self) -> Dict:
+        state = {
+            ObjectState.POSITION: self.get_panda_pos(),
+            ObjectState.HEADING_THETA: self.heading_theta,
+            ObjectState.ROLL: self.roll,
+            ObjectState.PITCH: self.pitch,
+            ObjectState.VELOCITY: self.velocity,
+        }
+        return state
+
+    def set_state(self, state: Dict):
+        self.set_panda_pos(state[ObjectState.POSITION])
+        self.set_heading_theta(state[ObjectState.HEADING_THETA])
+        self.set_pitch(state[ObjectState.PITCH])
+        self.set_roll(state[ObjectState.ROLL])
+        self.set_velocity(state[ObjectState.VELOCITY] / 3.6)
+
+    @property
+    def top_down_color(self):
+        rand_c = self.panda_color
+        return rand_c[0] * 255, rand_c[1] * 255, rand_c[2] * 255
+
+    @property
+    def top_down_width(self):
+        raise NotImplementedError(
+            "Implement this func for rendering class {} in top down renderer".format(self.class_name)
+        )
+
+    @property
+    def top_down_length(self):
+        raise NotImplementedError(
+            "Implement this func for rendering class {} in top down renderer".format(self.class_name)
+        )

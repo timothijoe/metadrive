@@ -1,17 +1,16 @@
-from metadrive.component.vehicle.base_vehicle import BaseVehicle
 import copy
 import logging
-from collections import namedtuple, deque
-from typing import Tuple, Dict
+import math
+from collections import namedtuple
+from typing import Dict
 
 from metadrive.component.lane.abs_lane import AbstractLane
 from metadrive.component.map.base_map import BaseMap
-from metadrive.component.road.road import Road
+from metadrive.component.road_network import Road
+from metadrive.component.vehicle.base_vehicle import BaseVehicle
 from metadrive.constants import TARGET_VEHICLES, TRAFFIC_VEHICLES, OBJECT_TO_AGENT, AGENT_TO_OBJECT
-from metadrive.engine.engine_utils import get_engine
 from metadrive.manager.base_manager import BaseManager
-from metadrive.utils import norm, merge_dicts
-import math
+from metadrive.utils import merge_dicts
 
 BlockVehicles = namedtuple("block_vehicles", "trigger_road vehicles")
 
@@ -76,7 +75,7 @@ class TrafficManager(BaseManager):
         # trigger vehicles
         engine = self.engine
         if self.mode != TrafficMode.Respawn:
-            for v in engine.agent_manager.active_objects.values():
+            for v in engine.agent_manager.active_agents.values():
                 ego_lane_idx = v.lane_index[:-1]
                 ego_road = Road(ego_lane_idx[0], ego_lane_idx[1])
                 if len(self.block_triggered_vehicles) > 0 and \
@@ -194,7 +193,6 @@ class TrafficManager(BaseManager):
         :return: List of vehicles
         """
 
-        from metadrive.component.blocks.ramp import InRampOnStraight
         _traffic_vehicles = []
         total_num = int(lane.length / self.VEHICLE_GAP)
         vehicle_longs = [i * self.VEHICLE_GAP for i in range(total_num)]
@@ -239,6 +237,10 @@ class TrafficManager(BaseManager):
 
             # Propose candidate locations for spawning new vehicles
             trigger_lanes = block.get_intermediate_spawn_lanes()
+            if self.engine.global_config["need_inverse_traffic"] and block.ID in ["S", "C", "r", "R"]:
+                neg_lanes = block.block_network.get_negative_lanes()
+                self.np_random.shuffle(neg_lanes)
+                trigger_lanes += neg_lanes
             potential_vehicle_configs = []
             for lanes in trigger_lanes:
                 for l in lanes:
@@ -335,3 +337,57 @@ class TrafficManager(BaseManager):
     @property
     def current_map(self):
         return self.engine.map_manager.current_map
+
+
+class MixedTrafficManager(TrafficManager):
+    def _create_respawn_vehicles(self, *args, **kwargs):
+        raise NotImplementedError()
+
+    def _create_vehicles_once(self, map: BaseMap, traffic_density: float) -> None:
+        vehicle_num = 0
+        for block in map.blocks[1:]:
+
+            # Propose candidate locations for spawning new vehicles
+            trigger_lanes = block.get_intermediate_spawn_lanes()
+            if self.engine.global_config["need_inverse_traffic"] and block.ID in ["S", "C", "r", "R"]:
+                neg_lanes = block.block_network.get_negative_lanes()
+                self.np_random.shuffle(neg_lanes)
+                trigger_lanes += neg_lanes
+            potential_vehicle_configs = []
+            for lanes in trigger_lanes:
+                for l in lanes:
+                    if hasattr(self.engine, "object_manager") and l in self.engine.object_manager.accident_lanes:
+                        continue
+                    potential_vehicle_configs += self._propose_vehicle_configs(l)
+
+            # How many vehicles should we spawn in this block?
+            total_length = sum([lane.length for lanes in trigger_lanes for lane in lanes])
+            total_spawn_points = int(math.floor(total_length / self.VEHICLE_GAP))
+            total_vehicles = int(math.floor(total_spawn_points * traffic_density))
+
+            # Generate vehicles!
+            vehicles_on_block = []
+            self.np_random.shuffle(potential_vehicle_configs)
+            selected = potential_vehicle_configs[:min(total_vehicles, len(potential_vehicle_configs))]
+
+            from metadrive.policy.idm_policy import IDMPolicy
+            from metadrive.policy.expert_policy import ExpertPolicy
+            # print("===== We are initializing {} vehicles =====".format(len(selected)))
+            # print("Current seed: ", self.engine.global_random_seed)
+            for v_config in selected:
+                vehicle_type = self.random_vehicle_type()
+                v_config.update(self.engine.global_config["traffic_vehicle_config"])
+                random_v = self.spawn_object(vehicle_type, vehicle_config=v_config)
+                if self.np_random.random() < self.engine.global_config["rl_agent_ratio"]:
+                    # print("Vehicle {} is assigned with RL policy!".format(random_v.id))
+                    self.engine.add_policy(random_v.id, ExpertPolicy(random_v, self.generate_seed()))
+                else:
+                    self.engine.add_policy(random_v.id, IDMPolicy(random_v, self.generate_seed()))
+                vehicles_on_block.append(random_v)
+
+            trigger_road = block.pre_block_socket.positive_road
+            block_vehicles = BlockVehicles(trigger_road=trigger_road, vehicles=vehicles_on_block)
+
+            self.block_triggered_vehicles.append(block_vehicles)
+            vehicle_num += len(vehicles_on_block)
+        self.block_triggered_vehicles.reverse()

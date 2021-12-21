@@ -1,5 +1,3 @@
-import logging
-
 from direct.controls.InputState import InputState
 
 from metadrive.utils import is_win, is_mac
@@ -92,6 +90,16 @@ class SteeringWheelController(Controller):
         self.right_shift_paddle = False
         self.left_shift_paddle = False
 
+        self.button_circle = False
+        self.button_rectangle = False
+        self.button_triangle = False
+        self.button_x = False
+
+        self.button_up = False
+        self.button_down = False
+        self.button_right = False
+        self.button_left = False
+
     def process_input(self, vehicle):
         pygame.event.pump()
         steering = -self.joystick.get_axis(0)
@@ -101,5 +109,19 @@ class SteeringWheelController(Controller):
         self.ffb_dev.write(ecodes.EV_FF, ecodes.FF_AUTOCENTER, val)
         self.right_shift_paddle = True if self.joystick.get_button(self.RIGHT_SHIFT_PADDLE) else False
         self.left_shift_paddle = True if self.joystick.get_button(self.LEFT_SHIFT_PADDLE) else False
+
+        self.left_shift_paddle = True if self.joystick.get_button(self.LEFT_SHIFT_PADDLE) else False
+        self.left_shift_paddle = True if self.joystick.get_button(self.LEFT_SHIFT_PADDLE) else False
+
+        self.button_circle = True if self.joystick.get_button(2) else False
+        self.button_rectangle = True if self.joystick.get_button(1) else False
+        self.button_triangle = True if self.joystick.get_button(3) else False
+        self.button_x = True if self.joystick.get_button(0) else False
+
+        hat = self.joystick.get_hat(0)
+        self.button_up = True if hat[-1] == 1 else False
+        self.button_down = True if hat[-1] == -1 else False
+        self.button_left = True if hat[0] == -1 else False
+        self.button_right = True if hat[0] == 1 else False
 
         return [steering * self.STEERING_MAKEUP, throttle_brake / 2]

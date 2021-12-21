@@ -18,8 +18,9 @@ default_policy/value_out/bias (1,)
 import os.path as osp
 
 import numpy as np
-from metadrive.obs.state_obs import LidarStateObservation
+
 from metadrive.engine.engine_utils import get_global_config
+from metadrive.obs.state_obs import LidarStateObservation
 
 ckpt_path = osp.join(osp.dirname(__file__), "expert_weights.npz")
 _expert_weights = None
@@ -31,7 +32,7 @@ def expert(vehicle, deterministic=False, need_obs=False):
     global _expert_observation
     if _expert_weights is None:
         _expert_weights = np.load(ckpt_path)
-        v_config = get_global_config()["vehicle_config"]
+        v_config = get_global_config()["vehicle_config"].copy()
         v_config["lidar"] = dict(num_lasers=240, distance=50, num_others=4, gaussian_noise=0.0, dropout_prob=0.0)
         v_config["random_agent_model"] = False
         _expert_observation = LidarStateObservation(v_config)

@@ -1,7 +1,7 @@
 import gym
 import numpy as np
 
-from metadrive.component.vehicle_module.navigation import Navigation
+from metadrive.component.vehicle_navigation_module.node_network_navigation import NodeNetworkNavigation
 from metadrive.obs.observation_base import ObservationBase
 from metadrive.utils.math_utils import clip, norm
 
@@ -17,7 +17,7 @@ class StateObservation(ObservationBase):
     @property
     def observation_space(self):
         # Navi info + Other states
-        shape = self.ego_state_obs_dim + Navigation.navigation_info_dim + self.get_line_detector_dim()
+        shape = self.ego_state_obs_dim + NodeNetworkNavigation.navigation_info_dim + self.get_line_detector_dim()
         if self.config["random_agent_model"]:
             shape += 2
         return gym.spaces.Box(-0.0, 1.0, shape=(shape, ), dtype=np.float32)
@@ -53,7 +53,8 @@ class StateObservation(ObservationBase):
         """
         navi_info = vehicle.navigation.get_navi_info()
         ego_state = self.vehicle_state(vehicle)
-        return np.concatenate([ego_state, navi_info])
+        ret = np.concatenate([ego_state, navi_info])
+        return ret.astype(np.float32)
 
     def vehicle_state(self, vehicle):
         """
@@ -167,7 +168,8 @@ class LidarStateObservation(ObservationBase):
         state = self.state_observe(vehicle)
         other_v_info = self.lidar_observe(vehicle)
         self.current_observation = np.concatenate((state, np.asarray(other_v_info)))
-        return self.current_observation
+        ret = self.current_observation
+        return ret.astype(np.float32)
 
     def state_observe(self, vehicle):
         return self.state_obs.observe(vehicle)

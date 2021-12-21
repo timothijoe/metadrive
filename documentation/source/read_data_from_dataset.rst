@@ -5,6 +5,18 @@
 Read Data from Dataset
 ########################
 
+.. raw:: html
+
+    <br>
+    <table width="100%" style="margin: 0 0; text-align: center;">
+        <tr>
+            <td>
+            <iframe width="560" height="315" src="https://www.youtube.com/embed/EbC6-grcmRY" title="MetaDrive Multi-agent Environments" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+            </td>
+        </tr>
+    </table>
+    <br>
+
 
 Setting up Argoverse dataset
 #############################
@@ -75,5 +87,5 @@ we use a few parameters to specify the data to be loaded. Here is the detailed e
 - :code:`argoverse_city`: The shortcut of the specified city.
 - :code:`argoverse_map_center/radius`, :code:`radius`: Only the roads and traffic within the circle centering in :code:`argoverse_map_center` with radius :code:`argoverse_map_radius` will be loaded.
 - :code:`argoverse_spawn_lane_index`: Node index indicating where the ego agent is initialized.
-- :code:`argoverse_destination_node`: Node index indicating the destination of the ego agent.
+- :code:`argoverse_destination`: Node index indicating the destination of the ego agent.
 - :code:`argoverse_log_id`: We select one sample of argoverse-tracking data with this ID as the folder name.

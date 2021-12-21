@@ -13,10 +13,10 @@ try:
 except ImportError:
     pass
 
+from metadrive.component.argoverse_block.argoverse_block import ArgoverseBlock
+from metadrive.component.lane.argoverse_lane import ArgoverseLane
 from metadrive.component.map.base_map import BaseMap
 from metadrive.constants import LineColor
-from metadrive.component.blocks.argoverse_block import ArgoverseBlock
-from metadrive.component.lane.argoverse_lane import ArgoverseLane
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +81,7 @@ class ArgoverseMap(BaseMap):
         for lane in lanes:
             self._post_process_lane(lane)
 
-        block = ArgoverseBlock(0, self.road_network, chosen_lanes)
+        block = ArgoverseBlock(0, self.road_network, {lane.id: lane for lane in chosen_lanes})
         block.construct_block(self.engine.worldNP, self.engine.physics_world)
         self.blocks.append(block)
 

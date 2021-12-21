@@ -1,4 +1,5 @@
 from typing import Tuple
+
 from panda3d.bullet import BulletBoxShape
 from panda3d.bullet import BulletCylinderShape
 
@@ -7,7 +8,6 @@ from metadrive.constants import BodyName
 from metadrive.constants import CollisionGroup
 from metadrive.engine.asset_loader import AssetLoader
 from metadrive.engine.physics_node import BaseRigidBodyNode
-from metadrive.utils.coordinates_shift import panda_position, panda_heading
 
 LaneIndex = Tuple[str, str, int]
 
@@ -53,6 +53,18 @@ class TrafficCone(TrafficObject):
             model.setPos(0, 0, -self.HEIGHT / 2)
             model.reparentTo(self.origin)
 
+    @property
+    def top_down_length(self):
+        return self.RADIUS * 2
+
+    @property
+    def top_down_width(self):
+        return self.RADIUS * 2
+
+    @property
+    def top_down_color(self):
+        return 100, 100, 100
+
 
 class TrafficWarning(TrafficObject):
     """Placed behind the vehicle when it breaks down"""
@@ -74,6 +86,14 @@ class TrafficWarning(TrafficObject):
             model.setPos(0, 0, -self.HEIGHT / 2)
             model.reparentTo(self.origin)
 
+    @property
+    def top_down_length(self):
+        return self.RADIUS
+
+    @property
+    def top_down_width(self):
+        return self.RADIUS
+
 
 class TrafficBarrier(TrafficObject):
     """A barrier"""
@@ -93,3 +113,13 @@ class TrafficBarrier(TrafficObject):
             model = self.loader.loadModel(AssetLoader.file_path("models", "barrier", "scene.gltf"))
             model.setH(-90)
             model.reparentTo(self.origin)
+
+    @property
+    def top_down_length(self):
+        # reverse the direction
+        return self.WIDTH
+
+    @property
+    def top_down_width(self):
+        # reverse the direction
+        return self.LENGTH

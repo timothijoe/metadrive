@@ -1,19 +1,20 @@
 import copy
-from metadrive.component.vehicle.base_vehicle import BaseVehicle
 from math import floor
 from typing import Union, List, Dict
+
 import numpy as np
 from panda3d.bullet import BulletBoxShape, BulletGhostNode
 from panda3d.core import Vec3
 
-from metadrive.component.blocks.first_block import FirstPGBlock
 from metadrive.component.lane.straight_lane import StraightLane
+from metadrive.component.pgblock.first_block import FirstPGBlock
+from metadrive.component.vehicle.base_vehicle import BaseVehicle
 from metadrive.constants import CollisionGroup
 from metadrive.engine.engine_utils import get_engine
+from metadrive.manager.base_manager import BaseManager
 from metadrive.utils import Config
 from metadrive.utils.coordinates_shift import panda_position, panda_heading
 from metadrive.utils.scene_utils import rect_region_detection
-from metadrive.manager.base_manager import BaseManager
 
 
 class SpawnManager(BaseManager):
@@ -95,7 +96,7 @@ class SpawnManager(BaseManager):
         for agent_id, config in ret.items():
             if agent_id in self._init_target_vehicle_configs:
                 config = self._init_target_vehicle_configs[agent_id]
-            if not config.get("destination_node", False) or config["destination_node"] is None:
+            if not config.get("destination", False) or config["destination"] is None:
                 config = self.update_destination_for(agent_id, config)
             target_vehicle_configs[agent_id] = config
 

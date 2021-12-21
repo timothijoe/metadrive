@@ -1,6 +1,6 @@
 import json
 
-from metadrive import MetaDriveEnv, MetaDriveEnv
+from metadrive import MetaDriveEnv
 from metadrive.utils import recursive_equal
 from metadrive.utils.generate_maps import generate_maps
 
@@ -55,7 +55,7 @@ def test_map_buffering():
     try:
         for i in range(10):
             e.reset()
-        assert any([v is not None for v in e.engine.map_manager.pg_maps.values()])
+        assert any([v is not None for v in e.engine.map_manager.maps.values()])
     finally:
         e.close()
 

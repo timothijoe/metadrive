@@ -1,16 +1,18 @@
 import copy
-from metadrive.manager.spawn_manager import SpawnManager
-from metadrive.manager.map_manager import MapManager
+
 import gym
 import numpy as np
-from metadrive.component.blocks.first_block import FirstPGBlock
-from metadrive.component.blocks.roundabout import Roundabout
+
 from metadrive.component.map.pg_map import PGMap
-from metadrive.component.road.road import Road
+from metadrive.component.pgblock.first_block import FirstPGBlock
+from metadrive.component.pgblock.roundabout import Roundabout
+from metadrive.component.road_network import Road
 from metadrive.envs.marl_envs.multi_agent_metadrive import MultiAgentMetaDrive
+from metadrive.manager.map_manager import MapManager
+from metadrive.manager.spawn_manager import SpawnManager
 from metadrive.obs.observation_base import ObservationBase
 from metadrive.obs.state_obs import StateObservation
-from metadrive.utils import get_np_random, norm, Config
+from metadrive.utils import norm, Config
 
 MARoundaboutConfig = dict(
     spawn_roads=[
@@ -23,7 +25,7 @@ MARoundaboutConfig = dict(
     top_down_camera_initial_x=95,
     top_down_camera_initial_y=15,
     top_down_camera_initial_z=120,
-    num_agents=12,
+    num_agents=20,
 )
 
 
@@ -117,7 +119,7 @@ class LidarStateObservationMARound(ObservationBase):
             self.cloud_points = cloud_points
             self.detected_objects = detected_objects
         self.current_observation = np.concatenate((state, np.asarray(other_v_info)))
-        return self.current_observation
+        return self.current_observation.astype(np.float32)
 
     def state_observe(self, vehicle):
         return self.state_obs.observe(vehicle)
@@ -139,7 +141,7 @@ class RoundaboutSpawnManager(SpawnManager):
     def update_destination_for(self, vehicle_id, vehicle_config):
         end_roads = copy.deepcopy(self.engine.global_config["spawn_roads"])
         end_road = -self.np_random.choice(end_roads)  # Use negative road!
-        vehicle_config["destination_node"] = end_road.end_node
+        vehicle_config["destination"] = end_road.end_node
         return vehicle_config
 
 

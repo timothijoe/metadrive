@@ -26,30 +26,53 @@
 <div class="section">
     <!-- === Title Starts === -->
     <div class="header">
-        <div class="logo">
-            <a href="https://decisionforce.github.io/" target="_blank">
-                <img src="images/deciforce.png">
-            </a>
-        </div>
-        <div class="logo"
-             style="float: right; object-fit:none; overflow-x: hidden; width: 150pt; margin-top: 25pt;margin-left: 0">
-            <a href="https://github.com/decisionforce/metadrive" target="_blank">
-                <img style=" width: 150pt; overflow-x: hidden;"
-                     align=right
-                     src="https://raw.githubusercontent.com/decisionforce/metadrive/main/metadrive/assets/logo.png">
-            </a>
-        </div>
+
+        <table>
+            <tr>
+                <td>
+
+                    <div class="logo"
+                         style="
+                         width: 100pt;
+                         vertical-align: text-top;
+                         text-align: center;
+                         ">
+                        <a href="https://decisionforce.github.io/" target="_blank">
+                            <img src="images/deciforce.png">
+                        </a>
+                    </div>
+
+                </td>
+                <td>
+                    <div style="padding-top: 10pt;" class="title" id="lang">
+                        MetaDrive: Composing Diverse Driving Scenarios for Generalizable Reinforcement Learning
+                    </div>
+
+                </td>
+                <td>
+
+                    <div class="logo"
+                         style="
+                         width: 150pt;
+                         vertical-align: text-top;
+                         text-align: center;
+                         ">
+                        <a href="https://github.com/decisionforce/metadrive" target="_blank">
+                            <img style=" width: 150pt;" src="images/metadrive.png">
+                        </a>
+                    </div>
+
+                </td>
+            </tr>
+        </table>
 
 
-        <div style="padding-top: 10pt;" class="title" id="lang">
-            MetaDrive: Composing Diverse Driving Scenarios for Generalizable Reinforcement Learning
-        </div>
         <br>
     </div>
     <!-- === Title Ends === -->
 
-    <div class="author">
-        <a href="#">Quanyi Li</a><sup>1,2</sup>*,&nbsp;
+    <div class="author" style="margin-top: -10pt">
+        <a href="https://quanyili.github.io" target="_blank">Quanyi Li</a><sup>1,2</sup>*,&nbsp;
         <a href="https://pengzhenghao.github.io" target="_blank">Zhenghao Peng</a><sup>1</sup>*,&nbsp;
         <a href="#">Zhenghai Xue</a><sup>1</sup>,&nbsp;
         <a href="#">Qihang Zhang</a><sup>1</sup>,&nbsp;
@@ -61,16 +84,81 @@
             <sup>2</sup>Centre for Perceptual and Interactive Intelligence
         </div>
     </div>
+
+    <table border="0" align="center">
+        <tr>
+            <td align="center" style="padding: 0pt 0 15pt 0">
+                <a class="bar" href="https://decisionforce.github.io/metadrive"><b>Webpage</b></a> |
+                <a class="bar" href="https://github.com/decisionforce/metadrive"><b>Code</b></a> |
+                <a class="bar" href="https://arxiv.org/pdf/2109.12674.pdf"><b>Paper</b></a>
+            </td>
+        </tr>
+    </table>
+    
+    <div align="center">
+        <table width="100%" style="margin: 0pt 0pt; text-align: center;">
+            <tr>
+                <td>
+                    <video style="display:block; width:100%; height:auto; "
+                           autoplay="autoplay" muted loop="loop" controls playsinline>
+                        <source src="https://raw.githubusercontent.com/decisionforce/archive/master/MetaDrive/metadrive_teaser.mp4"
+                                type="video/mp4"/>
+                    </video>
+                </td>
+            </tr>
+        </table>
+    </div>
+    
 </div>
 <!-- === Home Section Ends === -->
 
 
-<!-- === Overview Section Starts === -->
-<div class="section">
-    This page is under construction! We expect to finish cleanup by 2nd September!
-</div>
-<!-- === Result Section Ends === -->
 
+
+<div class="section">
+    <div class="title" id="lang">MetaDrive Simulator</div>
+    <p>
+        To facilitate the research of generalizable reinforcement learning, we develop an open-source, highly efficient
+        and flexible driving simulator MetaDrive, which holds the following key features:
+    </p>
+    <ul>
+        <li>
+            <b>Compositional</b>: It supports generating infinite scenes with various road maps and traffic settings for the
+            research of generalizable RL.
+        </li>
+        <li>
+            <b>Lightweight</b>: It is easy to install and run. It can run up to 300 FPS on a standard PC.
+        </li>
+        <li>
+            <b>Realistic</b>: Accurate physics simulation and multiple sensory input including Lidar, RGB images, top-down
+            semantic map and first-person view images. The real traffic data replay is also supported.
+        </li>
+    </ul>
+    <p>
+        We construct a variety of RL tasks and baselines in both single-agent and multi-agent settings, including
+        benchmarking generalizability across unseen scenes, safe exploration, and learning multi-agent traffic. 
+    </p>
+</div>
+
+
+<!-- === Reference Section Starts === -->
+<div class="section">
+    <div class="bibtex">
+       <div class="title" id="lang">Reference</div>
+    </div>
+Please refer to the <a href="https://arxiv.org/pdf/2109.12674.pdf">technical report</a> or the <a href="https://github.com/decisionforce/metadrive">code repo</a> for more information.
+    <pre>
+@misc{li2021metadrive,
+      title={MetaDrive: Composing Diverse Driving Scenarios for Generalizable Reinforcement Learning},
+      author={Quanyi Li and Zhenghao Peng and Zhenghai Xue and Qihang Zhang and Bolei Zhou},
+      year={2021},
+      eprint={2109.12674},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG}
+}
+</pre>
+    <!-- Adjust the frame size based on the demo (Every project differs). -->
+</div>
 
 </body>
 </html>

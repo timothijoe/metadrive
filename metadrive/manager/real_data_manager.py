@@ -1,19 +1,11 @@
-from metadrive.component.vehicle.base_vehicle import BaseVehicle
-from metadrive.component.vehicle.vehicle_type import *
-import copy
 import logging
-from collections import namedtuple, deque
-from typing import Tuple, Dict
+from collections import namedtuple
+
 import numpy as np
 
-from metadrive.component.lane.abs_lane import AbstractLane
 from metadrive.component.map.base_map import BaseMap
-from metadrive.component.road.road import Road
-from metadrive.constants import TARGET_VEHICLES, TRAFFIC_VEHICLES, OBJECT_TO_AGENT, AGENT_TO_OBJECT
-from metadrive.engine.engine_utils import get_engine
+from metadrive.component.vehicle.vehicle_type import *
 from metadrive.manager.base_manager import BaseManager
-from metadrive.utils import norm, merge_dicts
-import math
 
 BlockVehicles = namedtuple("block_vehicles", "trigger_road vehicles")
 
@@ -77,8 +69,8 @@ class RealDataManager(BaseManager):
         pos_dict = {i: j["init_pos"] for i, j in zip(locate_info.keys(), locate_info.values())}
 
         block = map.blocks[0]
-        lanes = block.argo_lanes
-        roads = block.block_network.get_roads(direction='positive', lane_num=1)
+        lanes = block.argo_lanes.values()
+        roads = self.get_roads(block.block_network, direction='positive', lane_num=1)
         potential_vehicle_configs = []
         for l in lanes:
             start = np.max(l.centerline, axis=0)
@@ -148,3 +140,21 @@ class RealDataManager(BaseManager):
     @property
     def current_map(self):
         return self.engine.map_manager.current_map
+
+    @staticmethod
+    def get_roads(roadnetwork, *, direction="all", lane_num=None) -> List:
+        """
+        Return all roads in road_network
+        :param direction: "positive"/"negative"
+        :param lane_num: only roads with lane_num lanes will be returned
+        :return: List[Road]
+        """
+        assert direction in ["positive", "negative", "all"], "incorrect road direction"
+        ret = []
+        for _from, _to_dict in self.graph.items():
+            if direction == "all" or (direction == "positive" and _from[0] != "-") or (direction == "negative"
+                                                                                       and _from[0] == "-"):
+                for _to, lanes in _to_dict.items():
+                    if lane_num is None or len(lanes) == lane_num:
+                        ret.append(Road(_from, _to))
+        return ret

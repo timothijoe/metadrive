@@ -1,5 +1,4 @@
 from metadrive.envs.metadrive_env import MetaDriveEnv
-from metadrive.envs.metadrive_env import MetaDriveEnv
 from metadrive.obs.top_down_obs import TopDownObservation
 from metadrive.obs.top_down_obs_multi_channel import TopDownMultiChannel
 from metadrive.utils import Config
@@ -9,7 +8,7 @@ class TopDownSingleFrameMetaDriveEnv(MetaDriveEnv):
     @classmethod
     def default_config(cls) -> Config:
         config = MetaDriveEnv.default_config()
-        config["vehicle_config"]["lidar"].update({"num_lasers": 0, "distance": 0})  # Remove lidar
+        # config["vehicle_config"]["lidar"].update({"num_lasers": 0, "distance": 0})  # Remove lidar
         config.update(
             {
                 "frame_skip": 5,
@@ -24,7 +23,10 @@ class TopDownSingleFrameMetaDriveEnv(MetaDriveEnv):
 
     def get_single_observation(self, _=None):
         return TopDownObservation(
-            self.config["vehicle_config"], self, self.config["rgb_clip"], max_distance=self.config["distance"]
+            self.config["vehicle_config"],
+            self.config["rgb_clip"],
+            self.config["use_render"],
+            max_distance=self.config["distance"]
         )
 
 
@@ -32,7 +34,7 @@ class TopDownMetaDrive(TopDownSingleFrameMetaDriveEnv):
     def get_single_observation(self, _=None):
         return TopDownMultiChannel(
             self.config["vehicle_config"],
-            self,
+            self.config["use_render"],
             self.config["rgb_clip"],
             frame_stack=self.config["frame_stack"],
             post_stack=self.config["post_stack"],
@@ -62,7 +64,7 @@ class TopDownMetaDriveEnvV2(MetaDriveEnv):
     def get_single_observation(self, _=None):
         return TopDownMultiChannel(
             self.config["vehicle_config"],
-            self,
+            self.config["use_render"],
             self.config["rgb_clip"],
             frame_stack=self.config["frame_stack"],
             post_stack=self.config["post_stack"],

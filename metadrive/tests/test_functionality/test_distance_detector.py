@@ -1,5 +1,5 @@
-from metadrive.component.vehicle.vehicle_type import DefaultVehicle
 from metadrive.component.vehicle.base_vehicle import BaseVehicle
+from metadrive.component.vehicle.vehicle_type import DefaultVehicle
 from metadrive.constants import BodyName
 from metadrive.constants import DEFAULT_AGENT
 from metadrive.envs.metadrive_env import MetaDriveEnv
@@ -41,7 +41,7 @@ def test_original_lidar(render=False):
         assert yellow == 2, "side detector and lane detector broken"
         detect_traffic_vehicle = False
         detect_base_vehicle = False
-        for i in range(1, 100000):
+        for i in range(1, 1000):
             o, r, d, info = env.step([0, 1])
             if len(env.vehicle.lidar.get_surrounding_vehicles(env.observations[DEFAULT_AGENT].detected_objects)) > 2:
                 detect_traffic_vehicle = True
@@ -93,7 +93,7 @@ def test_lidar_with_mask(render=False):
         assert yellow == 2, "side detector and lane detector broken"
         detect_traffic_vehicle = False
         detect_base_vehicle = False
-        for i in range(1, 100000):
+        for i in range(1, 1000):
             o, r, d, info = env.step([0, 1])
             if len(env.vehicle.lidar.get_surrounding_vehicles(env.observations[DEFAULT_AGENT].detected_objects)) > 2:
                 detect_traffic_vehicle = True
@@ -110,5 +110,5 @@ def test_lidar_with_mask(render=False):
 
 
 if __name__ == "__main__":
-    test_lidar_with_mask(render=False)
-    test_original_lidar(render=False)
+    # test_lidar_with_mask(render=True)
+    test_original_lidar(render=True)

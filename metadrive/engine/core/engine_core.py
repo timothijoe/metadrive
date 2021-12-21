@@ -1,16 +1,17 @@
 import logging
+import sys
 import time
-from typing import Optional, Union
+from typing import Optional, Union, Tuple
 
 import gltf
 from direct.gui.OnscreenImage import OnscreenImage
 from direct.showbase import ShowBase
 from panda3d.bullet import BulletDebugNode
-from panda3d.core import AntialiasAttrib, loadPrcFileData, LineSegs, PythonCallbackObject
+from panda3d.core import AntialiasAttrib, loadPrcFileData, LineSegs, PythonCallbackObject, Vec3, NodePath
 
 from metadrive.constants import RENDER_MODE_OFFSCREEN, RENDER_MODE_NONE, RENDER_MODE_ONSCREEN, EDITION, CamMask, \
     BKG_COLOR
-from metadrive.engine.asset_loader import initialize_asset_loader, close_asset_loader, randomize_cover
+from metadrive.engine.asset_loader import initialize_asset_loader, close_asset_loader, randomize_cover, get_logo_file
 from metadrive.engine.core.collision_callback import collision_callback
 from metadrive.engine.core.force_fps import ForceFPS
 from metadrive.engine.core.light import Light
@@ -44,6 +45,17 @@ def attach_cover_image(window_width, window_height):
     else:
         scale = window_height / window_width
     image.set_scale((scale, 1, scale))
+    image.setTransparency(True)
+    return image
+
+
+def attach_logo(engine):
+    cover_file_path = get_logo_file()
+    image = OnscreenImage(image=cover_file_path)
+    scale = 0.075
+    image.set_scale((scale * 3, 1, scale))
+    image.set_pos((0.8325 * engine.w_scale, 0, -0.94 * engine.h_scale))
+    image.set_antialias(AntialiasAttrib.MMultisample)
     image.setTransparency(True)
     return image
 
@@ -122,11 +134,6 @@ class EngineCore(ShowBase.ShowBase):
 
         super(EngineCore, self).__init__(windowType=self.mode)
 
-        # Change window size at runtime if screen too small
-        # assert int(self.global_config["use_topdown"]) + int(self.global_config["offscreen_render"]) <= 1, (
-        #     "Only one of use_topdown and offscreen_render options can be selected."
-        # )
-
         # main_window_position = (0, 0)
         if self.mode == RENDER_MODE_ONSCREEN:
             h = self.pipe.getDisplayHeight()
@@ -163,6 +170,8 @@ class EngineCore(ShowBase.ShowBase):
 
             # Display logo
             if self.mode == RENDER_MODE_ONSCREEN and (not self.global_config["debug"]):
+                if self.global_config["show_logo"]:
+                    self._window_logo = attach_logo(self)
                 self._loading_logo = attach_cover_image(
                     window_width=self.get_size()[0], window_height=self.get_size()[1]
                 )
@@ -251,7 +260,7 @@ class EngineCore(ShowBase.ShowBase):
 
             self.accept("h", self.toggle_help_message)
             self.accept("f", self.force_fps.toggle)
-
+            self.accept("escape", sys.exit)
         else:
             self.on_screen_message = None
 
@@ -365,6 +374,14 @@ class EngineCore(ShowBase.ShowBase):
             new_alpha = alpha - 0.08
             self._loading_logo.setColor((1, 1, 1, new_alpha))
             return task.cont
+
+    def add_line(self, start_p: Union[Vec3, Tuple], end_p: Union[Vec3, Tuple], color, thickness: float):
+        line_seg = LineSegs("interface")
+        line_seg.setColor(*color)
+        line_seg.moveTo(start_p)
+        line_seg.drawTo(end_p)
+        line_seg.setThickness(thickness)
+        NodePath(line_seg.create(False)).reparentTo(self.render)
 
 
 if __name__ == "__main__":

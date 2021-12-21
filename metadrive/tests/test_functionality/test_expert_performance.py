@@ -1,6 +1,7 @@
 import time
 
 import numpy as np
+
 from metadrive import MetaDriveEnv
 from metadrive.constants import DEFAULT_AGENT
 from metadrive.examples import expert, get_terminal_state
@@ -84,4 +85,4 @@ def test_expert_without_traffic():
 
 if __name__ == '__main__':
     test_expert_without_traffic()
-    test_expert_with_traffic(use_render=False)
+    # test_expert_with_traffic(use_render=False)

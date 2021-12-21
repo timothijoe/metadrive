@@ -1,6 +1,4 @@
 import math
-from metadrive.utils.math_utils import clip
-from panda3d.core import WindowProperties
 import queue
 from collections import deque
 from typing import Tuple
@@ -8,6 +6,7 @@ from typing import Tuple
 import numpy as np
 from direct.controls.InputState import InputState
 from panda3d.core import Vec3, Point3
+from panda3d.core import WindowProperties
 
 from metadrive.constants import CollisionGroup
 from metadrive.engine.engine_utils import get_engine
@@ -71,10 +70,11 @@ class MainCamera:
         self.engine.task_manager.add(self._top_down_task, self.TOP_DOWN_TASK_NAME, extraArgs=[], appendTask=True)
 
         # TPP rotate
-        props = WindowProperties()
-        # props.setCursorHidden(True)
-        # props.setMouseMode(WindowProperties.MConfined)
-        self.engine.win.requestProperties(props)
+        if not self.engine.global_config["show_mouse"]:
+            props = WindowProperties()
+            props.setCursorHidden(True)
+            props.setMouseMode(WindowProperties.MConfined)
+            self.engine.win.requestProperties(props)
         self.mouse_rotate = 0
         self.last_mouse_pos = self.engine.mouseWatcherNode.getMouseX() if self.has_mouse else 0
         self.static_timer = 0
@@ -126,7 +126,8 @@ class MainCamera:
         self.chase_camera_height = self._update_height(self.chase_camera_height)
         self.camera_queue.put(vehicle.chassis.get_pos())
         if not self.FOLLOW_LANE:
-            current_forward_dir = vehicle.system.get_forward_vector()
+            forward_dir = vehicle.system.get_forward_vector()
+            current_forward_dir = forward_dir[0], forward_dir[1]
         else:
             current_forward_dir = self._dir_of_lane(vehicle.navigation.current_ref_lanes[0], vehicle.position)
         self.direction_running_mean.append(current_forward_dir)

@@ -1,17 +1,16 @@
 from metadrive.engine.core.manual_controller import KeyboardController, SteeringWheelController
-from metadrive.utils import clip
+from metadrive.engine.engine_utils import get_global_config
 from metadrive.examples import expert
 from metadrive.policy.env_input_policy import EnvInputPolicy
-from metadrive.engine.engine_utils import get_global_config
 
 
 class ManualControlPolicy(EnvInputPolicy):
     """
     Control the current track vehicle
     """
-    def __init__(self):
-        super(ManualControlPolicy, self).__init__()
-        config = get_global_config()
+    def __init__(self, obj, seed):
+        super(ManualControlPolicy, self).__init__(obj, seed)
+        config = self.engine.global_config
         self.engine.accept("t", self.toggle_takeover)
         if config["manual_control"] and config["use_render"]:
             if config["controller"] == "keyboard":
@@ -47,8 +46,8 @@ class TakeoverPolicy(EnvInputPolicy):
     """
     Record the takeover signal
     """
-    def __init__(self):
-        super(TakeoverPolicy, self).__init__()
+    def __init__(self, obj, seed):
+        super(TakeoverPolicy, self).__init__(obj, seed)
         config = get_global_config()
         if config["manual_control"] and config["use_render"]:
             if config["controller"] == "joystick":
