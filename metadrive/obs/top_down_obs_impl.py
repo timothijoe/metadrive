@@ -212,9 +212,14 @@ class VehicleGraphics:
         angle = np.rad2deg(heading)
         box = [pygame.math.Vector2(p) for p in [(-h / 2, -w / 2), (-h / 2, w / 2), (h / 2, w / 2), (h / 2, -w / 2)]]
         box_rotate = [p.rotate(angle) + position for p in box]
+        # pygame.draw.polygon(surface, color, box_rotate)
+        # if draw_countour:
+        #     pygame.draw.polygon(surface, cls.BLACK, box_rotate, contour_width)  # , 1)
+
         pygame.draw.polygon(surface, color, box_rotate)
-        if draw_countour:
-            pygame.draw.polygon(surface, cls.BLACK, box_rotate, contour_width)  # , 1)
+        if draw_countour and pygame.ver.startswith("2"):
+            pygame.draw.polygon(surface, cls.BLACK, box_rotate, width=contour_width)  # , 1)
+
 
         # Label
         if label:
@@ -440,7 +445,8 @@ class ObservationWindowMultiChannel:
             mask = pygame.mask.from_threshold(ret[key], (0, 0, 0, 0), (10, 10, 10, 255))
             mask.to_surface(canvas, setcolor=None, unsetcolor=color)
 
-        _draw(canvas, "navigation", pygame.Color("Blue"))
+        if "navigation" in ret:
+            _draw(canvas, "navigation", pygame.Color("Blue"))
         _draw(canvas, "road_network", pygame.Color("White"))
         _draw(canvas, "traffic_flow", pygame.Color("Red"))
         _draw(canvas, "target_vehicle", pygame.Color("Green"))

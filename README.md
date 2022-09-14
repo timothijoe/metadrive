@@ -164,6 +164,16 @@ Zhenghao Peng*, Quanyi Li*, Chunxiao Liu, Bolei Zhou
 [<a href="https://github.com/decisionforce/EGPO" target="_blank">Code</a>]
 [<a href="https://decisionforce.github.io/EGPO/" target="_blank">Webpage</a>]
 [<a href="https://decisionforce.github.io/EGPO/images/egpo_poster.png" target="_blank">Poster</a>]
+
+**Efficient Learning of Safe Driving Policy via Human-AI Copilot Optimization**
+\
+Quanyi Li*, Zhenghao Peng*, Bolei Zhou
+\
+*ICLR 2022*
+\
+[<a href="https://arxiv.org/pdf/2202.10341.pdf" target="_blank">Paper</a>]
+[<a href="https://github.com/decisionforce/HACO" target="_blank">Code</a>]
+[<a href="https://decisionforce.github.io/HACO/" target="_blank">Webpage</a>]
     
 
 [![build](https://github.com/decisionforce/metadrive/workflows/test/badge.svg)](http://github.com/decisionforce/metadrive/actions)

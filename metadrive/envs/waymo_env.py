@@ -19,6 +19,9 @@ WAYMO_ENV_CONFIG = dict(
 
     # ===== Traffic =====
     no_traffic=False,
+    case_start_index=0,
+    case_end_index=-1,
+    replay=True,
 
     # ===== Agent config =====
     vehicle_config=dict(
@@ -60,11 +63,35 @@ class WaymoEnv(BaseEnv):
             assert self.config["agent_policy"] is not WaymoIDMPolicy, "WaymoIDM will fail when interacting with traffic"
 
     def _merge_extra_config(self, config):
-        config = self.default_config().update(config, allow_add_new_key=False)
+        config = self.default_config().update(config, allow_add_new_key=True)
         return config
 
     def _get_observations(self):
         return {self.DEFAULT_AGENT: self.get_single_observation(self.config["vehicle_config"])}
+
+    def switch_to_top_down_view(self):
+        self.main_camera.stop_track()
+
+    def switch_to_third_person_view(self):
+        if self.main_camera is None:
+            return
+        self.main_camera.reset()
+        if self.config["prefer_track_agent"] is not None and self.config["prefer_track_agent"] in self.vehicles.keys():
+            new_v = self.vehicles[self.config["prefer_track_agent"]]
+            current_track_vehicle = new_v
+        else:
+            if self.main_camera.is_bird_view_camera():
+                current_track_vehicle = self.current_track_vehicle
+            else:
+                vehicles = list(self.engine.agents.values())
+                if len(vehicles) <= 1:
+                    return
+                if self.current_track_vehicle in vehicles:
+                    vehicles.remove(self.current_track_vehicle)
+                new_v = get_np_random().choice(vehicles)
+                current_track_vehicle = new_v
+        self.main_camera.track(current_track_vehicle)
+        return
 
     def setup_engine(self):
         self.in_stop = False
@@ -74,6 +101,8 @@ class WaymoEnv(BaseEnv):
         if not self.config["no_traffic"]:
             self.engine.register_manager("traffic_manager", WaymoTrafficManager())
         self.engine.accept("s", self.stop)
+        self.engine.accept("q", self.switch_to_third_person_view)
+        self.engine.accept("b", self.switch_to_top_down_view)
 
     def step(self, actions):
         ret = super(WaymoEnv, self).step(actions)
@@ -147,18 +176,17 @@ class WaymoEnv(BaseEnv):
 
         # reward for lane keeping, without it vehicle can learn to overtake but fail to keep in lane
         if self.config["use_lateral"]:
-            lateral_factor = clip(1 - 2 * abs(lateral_now) / vehicle.navigation.get_current_lane_width(), 0.0, 1.0)
+            lateral_factor = clip(1 - 2 * abs(lateral_now) / 6, 0.0, 1.0)
         else:
             lateral_factor = 1.0
 
-        reward = -abs(lateral_now) / 4
-        reward += self.config["driving_reward"] * (long_now - long_last) * lateral_factor
-        reward += self.config["speed_reward"] * (vehicle.speed / vehicle.max_speed)
+        reward = 0
+        if not vehicle.on_white_continuous_line:
+            reward += self.config["driving_reward"] * (long_now - long_last) * lateral_factor
+            reward += self.config["speed_reward"] * (vehicle.speed / vehicle.max_speed)
 
         step_info["step_reward"] = reward
 
-        if vehicle.on_yellow_continuous_line:
-            reward -= 5
         if vehicle.arrive_destination:
             reward = +self.config["success_reward"]
         elif self._is_out_of_road(vehicle):
@@ -177,9 +205,9 @@ class WaymoEnv(BaseEnv):
 
     def _is_out_of_road(self, vehicle):
         # A specified function to determine whether this vehicle should be done.
-        # return vehicle.on_yellow_continuous_line or (not vehicle.on_lane) or vehicle.crash_sidewalk
-        ret = vehicle.crash_sidewalk
-        return ret
+        return vehicle.on_yellow_continuous_line or vehicle.crash_sidewalk
+        # ret = vehicle.crash_sidewalk
+        # return ret
 
     def stop(self):
         self.in_stop = not self.in_stop
@@ -194,7 +222,7 @@ if __name__ == "__main__":
             # "debug":True,
             # "no_traffic":True,
             # "start_case_index": 192,
-            "case_num": 160,
+            "case_num": 100,
             "waymo_data_directory": "E:\\hk\\idm_filtered\\validation",
             "horizon": 1000,
             # "vehicle_config": dict(show_lidar=True,
@@ -228,5 +256,6 @@ if __name__ == "__main__":
                 )
 
             if d:
+                if info["arrive_dest"]:
+                    print("seed:{}, success".format(env.engine.global_random_seed))
                 break
-    print("success")

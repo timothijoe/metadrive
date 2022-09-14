@@ -121,7 +121,7 @@ class TopDownRenderer:
         light_background=True,
         num_stack=15,
         history_smooth=0,
-        road_color=(255, 255, 255),
+        road_color=(80, 80, 80),
         show_agent_name=False,
         track_target_vehicle=True,
         # current_track_vehicle=None
@@ -187,7 +187,7 @@ class TopDownRenderer:
 
     def refresh(self):
         self._runtime_canvas.blit(self._background_canvas, (0, 0))
-        self._render_canvas.fill((255, 255, 255))
+        self.canvas.fill(color_white)
 
     def render(self, *args, **kwargs):
         # Record current target vehicle
@@ -199,7 +199,7 @@ class TopDownRenderer:
         self.refresh()
         self._draw()
         self.blit()
-        ret = self._render_canvas.copy()
+        ret = self.canvas.copy()
         ret = ret.convert(24)
         return ret
 
@@ -231,8 +231,7 @@ class TopDownRenderer:
 
     @property
     def current_track_vehicle(self):
-        # TODO(pzh) make this function more beautiful
-        return self.engine.agent_manager.active_agents["default_agent"]
+        return self.engine.current_track_vehicle
 
     def _append_frame_objects(self, objects):
         frame_objects = []

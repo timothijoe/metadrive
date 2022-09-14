@@ -2,7 +2,7 @@ import copy
 from typing import Dict
 
 from gym.spaces import Box, Dict, MultiDiscrete
-
+from metadrive.constants import DEFAULT_AGENT
 from metadrive.manager.base_manager import BaseManager
 from metadrive.policy.AI_protect_policy import AIProtectPolicy
 from metadrive.policy.env_input_policy import EnvInputPolicy
@@ -60,20 +60,20 @@ class AgentManager(BaseManager):
     def _get_vehicles(self, config_dict: dict):
         from metadrive.component.vehicle.vehicle_type import random_vehicle_type, vehicle_type
         ret = {}
-        v_type = random_vehicle_type(self.np_random) if self.engine.global_config["random_agent_model"] else \
-            vehicle_type[self.engine.global_config["vehicle_config"]["vehicle_model"]]
         for agent_id, v_config in config_dict.items():
+            v_type = random_vehicle_type(self.np_random) if self.engine.global_config["random_agent_model"] else \
+                vehicle_type[v_config["vehicle_model"] if v_config.get("vehicle_model", False) else "default"]
             obj = self.spawn_object(v_type, vehicle_config=v_config)
             ret[agent_id] = obj
             policy = self._get_policy(obj)
-            self.engine.add_policy(obj.id, policy)
+            self.add_policy(obj.id, policy)
         return ret
 
     def _get_policy(self, obj):
         # note: agent.id = object id
         if self.engine.global_config["agent_policy"] is not None:
             return self.engine.global_config["agent_policy"](obj, self.generate_seed())
-        if self.engine.global_config["manual_control"] and self.engine.global_config["use_render"]:
+        if self.engine.global_config["manual_control"]:
             if self.engine.global_config.get("use_AI_protector", False):
                 policy = AIProtectPolicy(obj, self.generate_seed())
             else:
@@ -92,6 +92,7 @@ class AgentManager(BaseManager):
         """
         Agent manager is really initialized after the BaseVehicle Instances are created
         """
+        self.random_spawn_lane_in_single_agent()
         config = self.engine.global_config
         self._debug = config["debug"]
         self._delay_done = config["delay_done"]
@@ -127,6 +128,16 @@ class AgentManager(BaseManager):
             self.action_spaces[vehicle.name] = action_space
             assert isinstance(action_space, Box) or isinstance(action_space, MultiDiscrete)
         self.next_agent_count = len(init_vehicles)
+
+    def random_spawn_lane_in_single_agent(self):
+        if not self.engine.global_config["is_multi_agent"] and \
+                self.engine.global_config.get("random_spawn_lane_index", False) and self.engine.current_map is not None:
+            spawn_road_start = self.engine.global_config["target_vehicle_configs"][DEFAULT_AGENT]["spawn_lane_index"][0]
+            spawn_road_end = self.engine.global_config["target_vehicle_configs"][DEFAULT_AGENT]["spawn_lane_index"][1]
+            index = self.np_random.randint(self.engine.current_map.config["lane_num"])
+            self.engine.global_config["target_vehicle_configs"][DEFAULT_AGENT]["spawn_lane_index"] = (
+                spawn_road_start, spawn_road_end, index
+            )
 
     def finish(self, agent_name, ignore_delay_done=False):
         """

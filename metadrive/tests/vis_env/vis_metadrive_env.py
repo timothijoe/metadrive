@@ -23,7 +23,7 @@ if __name__ == "__main__":
             "rgb_clip": True,
             "debug": True,
             # "debug_static_world": True,
-            "random_lane_num": True,
+            # "random_lane_num": True,
 
             # "map_config": {
             #     Map.GENERATE_TYPE: MapGenerateMethod.BIG_BLOCK_SEQUENCE,
@@ -33,13 +33,13 @@ if __name__ == "__main__":
             # },
             # "pstats": True,
             # "discrete_action": True,
-            "map": "rR",
+            "map": 5,
             "random_traffic": False,
             "random_lane_width": True,
-            "random_agent_model": True,
+            # "random_agent_model": True,
             "driving_reward": 1.0,
             "vehicle_config": {
-                "enable_reverse": True,
+                "enable_reverse": False,
                 # "image_source": "depth_camera",
                 # "random_color": True
                 # "show_lidar": True,
@@ -63,9 +63,9 @@ if __name__ == "__main__":
 
     for s in range(1, 10000):
         o, r, d, info = env.step(env.action_space.sample())
-        if s % 100 == 0:
-            env.close()
-            env.reset()
+        # if s % 100 == 0:
+        #     env.close()
+        #     env.reset()
         # info["fuel"] = env.vehicle.energy_consumption
         # env.render(
         #     text={
