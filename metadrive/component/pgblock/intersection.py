@@ -39,7 +39,7 @@ class InterSection(PGBlock):
     ANGLE = 90  # may support other angle in the future
     EXIT_PART_LENGTH = 30
 
-    enable_u_turn = False
+    enable_u_turn = True
 
     # LEFT_TURN_NUM = 1 now it is useless
 
