@@ -213,9 +213,10 @@ class VehicleGraphics:
         angle = np.rad2deg(heading)
         box = [pygame.math.Vector2(p) for p in [(-h / 2, -w / 2), (-h / 2, w / 2), (h / 2, w / 2), (h / 2, -w / 2)]]
         box_rotate = [p.rotate(angle) + position for p in box]
+
         pygame.draw.polygon(surface, color, box_rotate)
-        if draw_countour:
-            pygame.draw.polygon(surface, cls.BLACK, box_rotate, contour_width)  # , 1)
+        if draw_countour and pygame.ver.startswith("2"):
+            pygame.draw.polygon(surface, cls.BLACK, box_rotate, width=contour_width)  # , 1)
 
         # Label
         if label:

@@ -1,0 +1,202 @@
+f8155e81
+
+commit f8155e818c747f4a1823c603b8272b6d9a6129c1
+Author: Quanyi Li <quanyili0057@gmail.com>
+Date:   Fri Feb 10 23:05:37 2023 +0000
+
+    fix replay manager (#287)
+
+ metadrive/manager/record_manager.py | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+commit cb555aa4c090dbd8aca1a69a988c9dd1b8e1cce7
+Author: Quanyi Li <quanyili0057@gmail.com>
+Date:   Fri Feb 10 22:19:49 2023 +0000
+
+    Nuplan Support (#282)
+    
+    * 3.9 python support
+    
+    * fix config
+    
+    * manager setting
+    
+    * add env test for Waymo
+    
+    * fnish data manager
+    
+    * move DataBuffer to utils
+    
+    * waymo point lane renamed to point lane
+    
+    * Build Draw map api
+    
+    * format
+    
+    * simple build map
+    
+    * construct from road block
+    
+    * line type and sidewalk
+    
+    * ego car can drive in scenario, but a jitter happens, need to address
+    
+    * project to new center to avoid numerical overflow
+    
+    * format
+    
+    * env can run
+    
+    * solve performance issue
+    
+    * fix bug
+    
+    * nuplan ready
+    
+    * format
+    
+    * use polygon
+    
+    * run nuplan almost done
+    
+    * only vehicle manager
+    
+    * update set_velocity
+    
+    * apply velocity in local frame
+    
+    * finish nuplan import
+    
+    * format
+    
+    * fix setup.py
+    
+    * relax numpy version. we can add this constraint in future PR but after detailed study
+    
+    * format
+    
+    * use math.sin/cos instead
+    
+    * Update metadrive/base_class/base_object.py
+    
+    * format
+    
+    * fix
+    
+    ---------
+    
+    Co-authored-by: pengzhenghao <pzh@cs.ucla.edu>
+
+ metadrive/base_class/base_object.py                |  27 +-
+ metadrive/component/block/base_block.py            |   4 +-
+ metadrive/component/lane/abs_lane.py               |  63 +++-
+ metadrive/component/lane/argoverse_lane.py         |   6 +-
+ metadrive/component/lane/circular_lane.py          |  42 ++-
+ metadrive/component/lane/nuplan_lane.py            |  99 ++++++
+ .../lane/{waypoint_lane.py => point_lane.py}       |   6 +-
+ metadrive/component/lane/waymo_lane.py             |   4 +-
+ metadrive/component/map/nuplan_map.py              |  73 +++++
+ metadrive/component/map/waymo_map.py               |   2 +-
+ metadrive/component/nuplan_block/__init__.py       |   0
+ metadrive/component/nuplan_block/nuplan_block.py   | 248 +++++++++++++++
+ metadrive/component/vehicle/base_vehicle.py        |  13 +-
+ .../trajectory_navigation.py                       |  14 +-
+ metadrive/component/waymo_block/waymo_block.py     |   4 +-
+ metadrive/constants.py                             |   4 +
+ metadrive/engine/base_engine.py                    |   9 +-
+ metadrive/envs/base_env.py                         |   2 +
+ metadrive/envs/real_data_envs/mix_waymo_pg_env.py  |  23 +-
+ metadrive/envs/real_data_envs/nuplan_env.py        | 331 +++++++++++++++++++++
+ metadrive/envs/real_data_envs/waymo_env.py         |  45 +--
+ metadrive/envs/real_data_envs/waymo_idm_env.py     |   4 -
+ metadrive/examples/drive_in_waymo_env.py           |   4 +-
+ metadrive/manager/nuplan_data_manager.py           | 114 +++++++
+ metadrive/manager/nuplan_map_manager.py            | 118 ++++++++
+ metadrive/manager/nuplan_traffic_manager.py        | 124 ++++++++
+ metadrive/manager/record_manager.py                |  11 +-
+ metadrive/manager/waymo_data_manager.py            |   8 +-
+ metadrive/manager/waymo_idm_traffic_manager.py     |   9 +-
+ metadrive/manager/waymo_map_manager.py             |  19 +-
+ metadrive/manager/waymo_traffic_manager.py         |  12 +-
+ metadrive/obs/real_env_observation.py              |  63 ++++
+ metadrive/policy/idm_policy.py                     |  13 +-
+ metadrive/policy/replay_policy.py                  |  73 ++++-
+ metadrive/tests/test_env/test_ma_tollgate.py       |  10 +-
+ metadrive/tests/test_env/test_waymo_env.py         |  40 +++
+ metadrive/tests/vis_env/vis_metadrive_env.py       |  12 +-
+ metadrive/tests/vis_env/vis_waymo_env.py           |   9 +-
+ metadrive/utils/coordinates_shift.py               |   9 +
+ metadrive/utils/{waymo_utils => }/data_buffer.py   |  10 +-
+ metadrive/utils/nuplan_utils/__init__.py           |   0
+ metadrive/utils/nuplan_utils/parse_traffic.py      |  24 ++
+ .../utils/opendrive_map_utils/elements/geometry.py |   6 +-
+ metadrive/utils/waymo_utils/__init__.py            |   1 -
+ 44 files changed, 1554 insertions(+), 158 deletions(-)
+
+commit 6cec11996bf3b550c4925c05b4f001ba59bef002
+Author: PENG Zhenghao <pzh@cs.ucla.edu>
+Date:   Tue Feb 7 08:59:01 2023 -0800
+
+    Replace deprecated numpy types by builtin types (#277)
+
+ metadrive/utils/config.py     | 4 ++--
+ metadrive/utils/math_utils.py | 2 +-
+ 2 files changed, 3 insertions(+), 3 deletions(-)
+
+commit 02fca4da7e644061251e47e4b72d6c0839a2ebfb
+Author: PENG Zhenghao <pzh@cs.ucla.edu>
+Date:   Sun Jan 29 21:38:24 2023 -0800
+
+    Allow draw a line to next navigation checkpoint (#274)
+    
+    * fix bug in rendering
+    
+    * fix
+    
+    * fix some examples
+    
+    * fix
+    
+    * fix
+    
+    * fix opencv
+    
+    * format
+    
+    * fix
+    
+    * fix
+    
+    * format
+
+ .../vehicle_navigation_module/base_navigation.py   | 33 +++++++++++++++++++++-
+ .../edge_network_navigation.py                     |  2 ++
+ .../node_network_navigation.py                     |  2 ++
+ .../trajectory_navigation.py                       |  2 ++
+ metadrive/engine/core/force_fps.py                 |  6 ++--
+ metadrive/envs/base_env.py                         |  3 ++
+ metadrive/manager/waymo_data_manager.py            |  3 +-
+ metadrive/policy/manual_control_policy.py          |  2 +-
+ metadrive/tests/test_env/test_safe_env.py          | 13 +++++++--
+ 9 files changed, 58 insertions(+), 8 deletions(-)
+
+commit fa84f82a5de87b01e805ab76ca4dc1a26826a9bf
+Author: PENG Zhenghao <pzh@cs.ucla.edu>
+Date:   Thu Jan 19 10:11:31 2023 -0800
+
+    Fix opencv-python (#272)
+    
+    * fix
+    
+    * fix
+    
+    * fix opencv
+    
+    * format
+
+ metadrive/component/vehicle/base_vehicle.py        |  2 +-
+ metadrive/obs/state_obs.py                         | 27 ++++++++++++----------
+ metadrive/obs/top_down_renderer.py                 |  2 +-
+ .../tests/vis_functionality/vis_shared_camera.py   |  3 +--
+ setup.py                                           |  2 +-
+ 5 files changed, 19 insertions(+), 17 deletions(-)

@@ -36,7 +36,7 @@ BASE_DEFAULT_CONFIG = dict(
     # ===== Action =====
     manual_control=False,
     controller="keyboard",  # "joystick" or "keyboard"
-    decision_repeat=5, #5
+    decision_repeat=5,
     discrete_action=False,
     discrete_steering_dim=5,
     discrete_throttle_dim=5,
@@ -80,6 +80,8 @@ BASE_DEFAULT_CONFIG = dict(
         spawn_lateral=0.0,
         destination=None,
         spawn_position_heading=None,
+        spawn_velocity=None,
+        spawn_velocity_car_frame=False,
 
         # ==== others ====
         overtake_stat=False,  # we usually set to True when evaluation

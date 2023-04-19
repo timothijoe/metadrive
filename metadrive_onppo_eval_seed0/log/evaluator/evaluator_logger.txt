@@ -1,0 +1,2 @@
+[2023-04-19 17:23:57][interaction_serial_evaluator.py:253][INFO] [EVALUATOR]env 0 finish episode, final reward: 17.3339, current episode: 1
+[2023-04-19 17:24:18][interaction_serial_evaluator.py:253][INFO] [EVALUATOR]env 0 finish episode, final reward: 20.9769, current episode: 2
