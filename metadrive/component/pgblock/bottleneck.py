@@ -1,3 +1,4 @@
+from metadrive.component.lane.straight_lane import StraightLane
 from metadrive.component.pgblock.create_pg_block_utils import CreateAdverseRoad, CreateRoadFrom, ExtendStraightLane, \
     create_wave_lanes
 from metadrive.component.pgblock.pg_block import PGBlock, PGBlockSocket
@@ -17,6 +18,17 @@ class Bottleneck(PGBlock):
     # property of bottleneck
     BOTTLENECK_LEN = None
 
+    def get_intermediate_spawn_lanes(self):
+        """
+        Only spawn on straight lane
+        """
+        lanes = super(Bottleneck, self).get_intermediate_spawn_lanes()
+        filtered_lanes = []
+        for lane in lanes:
+            if isinstance(lane[0], StraightLane):
+                filtered_lanes.append(lane)
+        return filtered_lanes
+
 
 class Merge(Bottleneck):
     """
@@ -33,6 +45,7 @@ class Merge(Bottleneck):
     def _try_plug_into_previous_block(self) -> bool:
         no_cross = True
         parameters = self.get_config()
+        center_line_type = LineType.CONTINUOUS if parameters["solid_center_line"] else LineType.BROKEN
         self.BOTTLENECK_LEN = parameters["bottle_len"]
         lane_num_changed = parameters[Parameter.lane_num]
 
@@ -52,8 +65,8 @@ class Merge(Bottleneck):
             straight_road,
             self.block_network,
             self._global_network,
-            center_line_type=LineType.CONTINUOUS,
-            side_lane_line_type=LineType.NONE,
+            center_line_type=center_line_type,
+            side_lane_line_type=LineType.SIDE if circular_lane_num == 0 else LineType.NONE,
             inner_lane_line_type=LineType.NONE,
             ignore_intersection_checking=self.ignore_intersection_checking
         ) and no_cross
@@ -62,8 +75,8 @@ class Merge(Bottleneck):
             self.block_network,
             self._global_network,
             inner_lane_line_type=LineType.NONE,
-            side_lane_line_type=LineType.NONE,
-            center_line_type=LineType.CONTINUOUS,
+            side_lane_line_type=LineType.SIDE if circular_lane_num == 0 else LineType.NONE,
+            center_line_type=center_line_type,
             ignore_intersection_checking=self.ignore_intersection_checking
         ) and no_cross
 
@@ -76,7 +89,7 @@ class Merge(Bottleneck):
             socket_road,
             self.block_network,
             self._global_network,
-            center_line_type=LineType.CONTINUOUS,
+            center_line_type=center_line_type,
             side_lane_line_type=LineType.SIDE,
             inner_lane_line_type=LineType.BROKEN,
             ignore_intersection_checking=self.ignore_intersection_checking
@@ -87,7 +100,7 @@ class Merge(Bottleneck):
             self._global_network,
             inner_lane_line_type=LineType.BROKEN,
             side_lane_line_type=LineType.SIDE,
-            center_line_type=LineType.CONTINUOUS,
+            center_line_type=center_line_type,
             ignore_intersection_checking=self.ignore_intersection_checking
         ) and no_cross
 
@@ -177,6 +190,7 @@ class Split(Bottleneck):
         no_cross = True
         parameters = self.get_config()
         self.BOTTLENECK_LEN = parameters["bottle_len"]
+        center_line_type = LineType.CONTINUOUS if parameters["solid_center_line"] else LineType.BROKEN
         lane_num_changed = parameters[Parameter.lane_num]
 
         start_ndoe = self.pre_block_socket.positive_road.end_node
@@ -194,7 +208,7 @@ class Split(Bottleneck):
             straight_road,
             self.block_network,
             self._global_network,
-            center_line_type=LineType.CONTINUOUS,
+            center_line_type=center_line_type,
             side_lane_line_type=LineType.NONE,
             inner_lane_line_type=LineType.NONE,
             ignore_intersection_checking=self.ignore_intersection_checking
@@ -205,7 +219,7 @@ class Split(Bottleneck):
             self._global_network,
             inner_lane_line_type=LineType.NONE,
             side_lane_line_type=LineType.NONE,
-            center_line_type=LineType.CONTINUOUS,
+            center_line_type=center_line_type,
             ignore_intersection_checking=self.ignore_intersection_checking
         ) and no_cross
 

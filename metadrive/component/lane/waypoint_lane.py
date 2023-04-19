@@ -1,6 +1,7 @@
 from typing import Tuple, Union
 
 import numpy as np
+
 from metadrive.component.lane.abs_lane import AbstractLane
 from metadrive.constants import LineType
 from metadrive.utils.interpolating_line import InterpolatingLine
@@ -33,7 +34,9 @@ class WayPointLane(AbstractLane, InterpolatingLine):
         self.is_straight = True if abs(self.heading_theta_at(0.1) -
                                        self.heading_theta_at(self.length - 0.1)) < np.deg2rad(10) else False
         self.start = self.position(0, 0)
+        assert np.linalg.norm(self.start - center_line_points[0]) < 0.1, "Start point error!"
         self.end = self.position(self.length, 0)
+        assert np.linalg.norm(self.end - center_line_points[-1]) < 1, "End point error!"
 
     def width_at(self, longitudinal: float) -> float:
         return self.width
@@ -45,20 +48,10 @@ class WayPointLane(AbstractLane, InterpolatingLine):
         return self.get_heading_theta(longitudinal)
 
     def position(self, longitudinal: float, lateral: float) -> np.ndarray:
-        return self.get_point(longitudinal, lateral)
+        return InterpolatingLine.position(self, longitudinal, lateral)
 
-    def local_coordinates(self, position: Tuple[float, float]):
-        ret = []  # ret_longitude, ret_lateral, sort_key
-        accumulate_len = 0
-        for seg in self.segment_property:
-            delta_x = position[0] - seg["start_point"][0]
-            delta_y = position[1] - seg["start_point"][1]
-            longitudinal = delta_x * seg["direction"][0] + delta_y * seg["direction"][1]
-            lateral = delta_x * seg["lateral_direction"][0] + delta_y * seg["lateral_direction"][1]
-            ret.append([accumulate_len + longitudinal, lateral])
-            accumulate_len += seg["length"]
-        ret.sort(key=lambda seg: abs(seg[-1]))
-        return ret[0][0], ret[0][1]
+    def local_coordinates(self, position: Tuple[float, float], only_in_lane_point=False):
+        return InterpolatingLine.local_coordinates(self, position, only_in_lane_point)
 
     def is_in_same_direction(self, another_lane):
         """
@@ -88,3 +81,4 @@ class WayPointLane(AbstractLane, InterpolatingLine):
         self.start = None
         self.end = None
         InterpolatingLine.destroy(self)
+        super(WayPointLane, self).destroy()

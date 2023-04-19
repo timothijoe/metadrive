@@ -4,6 +4,7 @@ from typing import Union
 
 import numpy as np
 
+from metadrive.component.algorithm.blocks_prob_dist import PGBlockDistConfig
 from metadrive.component.map.base_map import BaseMap
 from metadrive.component.map.pg_map import parse_map_config, MapGenerateMethod
 from metadrive.component.pgblock.first_block import FirstPGBlock
@@ -20,6 +21,7 @@ METADRIVE_DEFAULT_CONFIG = dict(
 
     # ===== Map Config =====
     map=3,  # int or string: an easy way to fill map_config
+    block_dist_config=PGBlockDistConfig,
     random_lane_width=False,
     random_lane_num=False,
     map_config={
@@ -55,19 +57,23 @@ METADRIVE_DEFAULT_CONFIG = dict(
     vehicle_config=dict(spawn_lane_index=(FirstPGBlock.NODE_1, FirstPGBlock.NODE_2, 0)),
 
     # ===== Agent =====
+    random_spawn_lane_index=True,
     target_vehicle_configs={
-        DEFAULT_AGENT: dict(use_special_color=True, spawn_lane_index=(FirstPGBlock.NODE_1, FirstPGBlock.NODE_2, 0))
+        DEFAULT_AGENT: dict(
+            use_special_color=True,
+            spawn_lane_index=(FirstPGBlock.NODE_1, FirstPGBlock.NODE_2, 0),
+        )
     },
 
     # ===== Reward Scheme =====
-    # See: https://github.com/decisionforce/metadrive/issues/283
+    # See: https://github.com/metadriverse/metadrive/issues/283
     success_reward=10.0,
     out_of_road_penalty=5.0,
     crash_vehicle_penalty=5.0,
     crash_object_penalty=5.0,
     driving_reward=1.0,
     speed_reward=0.1,
-    use_lateral=False,
+    use_lateral_reward=False,
 
     # ===== Cost Scheme =====
     crash_vehicle_cost=1.0,
@@ -76,6 +82,7 @@ METADRIVE_DEFAULT_CONFIG = dict(
 
     # ===== Termination Scheme =====
     out_of_route_done=False,
+    on_continuous_line_done=True
 )
 
 
@@ -140,10 +147,18 @@ class MetaDriveEnv(BaseEnv):
     def done_function(self, vehicle_id: str):
         vehicle = self.vehicles[vehicle_id]
         done = False
-        done_info = dict(
-            crash_vehicle=False, crash_object=False, crash_building=False, out_of_road=False, arrive_dest=False
-        )
-        if vehicle.arrive_destination:
+        done_info = {
+            TerminationState.CRASH_VEHICLE: False,
+            TerminationState.CRASH_OBJECT: False,
+            TerminationState.CRASH_BUILDING: False,
+            TerminationState.OUT_OF_ROAD: False,
+            TerminationState.SUCCESS: False,
+            TerminationState.MAX_STEP: False,
+            # TerminationState.CURRENT_BLOCK: self.vehicle.navigation.current_road.block_ID(),
+            TerminationState.ENV_SEED: self.current_seed,
+            # crash_vehicle=False, crash_object=False, crash_building=False, out_of_road=False, arrive_dest=False,
+        }
+        if self._is_arrive_destination(vehicle):
             done = True
             logging.info("Episode ended! Reason: arrive_dest.")
             done_info[TerminationState.SUCCESS] = True
@@ -163,6 +178,18 @@ class MetaDriveEnv(BaseEnv):
             done = True
             done_info[TerminationState.CRASH_BUILDING] = True
             logging.info("Episode ended! Reason: crash building ")
+        if self.config["max_step_per_agent"] is not None and \
+                self.episode_lengths[vehicle_id] >= self.config["max_step_per_agent"]:
+            done = True
+            done_info[TerminationState.MAX_STEP] = True
+            logging.info("Episode ended! Reason: max step ")
+
+        if self.config["horizon"] is not None and \
+                self.episode_lengths[vehicle_id] >= self.config["horizon"] and not self.is_multi_agent:
+            # single agent horizon has the same meaning as max_step_per_agent
+            done = True
+            done_info[TerminationState.MAX_STEP] = True
+            logging.info("Episode ended! Reason: max step ")
 
         # for compatibility
         # crash almost equals to crashing with vehicles
@@ -184,13 +211,22 @@ class MetaDriveEnv(BaseEnv):
             step_info["cost"] = self.config["crash_object_cost"]
         return step_info['cost'], step_info
 
+    def _is_arrive_destination(self, vehicle):
+        long, lat = vehicle.navigation.final_lane.local_coordinates(vehicle.position)
+        flag = (vehicle.navigation.final_lane.length - 5 < long < vehicle.navigation.final_lane.length + 5) and (
+            vehicle.navigation.get_current_lane_width() / 2 >= lat >=
+            (0.5 - vehicle.navigation.get_current_lane_num()) * vehicle.navigation.get_current_lane_width()
+        )
+        return flag
+
     def _is_out_of_road(self, vehicle):
         # A specified function to determine whether this vehicle should be done.
         # return vehicle.on_yellow_continuous_line or (not vehicle.on_lane) or vehicle.crash_sidewalk
-        ret = vehicle.on_yellow_continuous_line or vehicle.on_white_continuous_line or \
-              (not vehicle.on_lane) or vehicle.crash_sidewalk
+        ret = not vehicle.on_lane
         if self.config["out_of_route_done"]:
             ret = ret or vehicle.out_of_route
+        elif self.config["on_continuous_line_done"]:
+            ret = ret or vehicle.on_yellow_continuous_line or vehicle.on_white_continuous_line or vehicle.crash_sidewalk
         return ret
 
     def reward_function(self, vehicle_id: str):
@@ -214,7 +250,7 @@ class MetaDriveEnv(BaseEnv):
         long_now, lateral_now = current_lane.local_coordinates(vehicle.position)
 
         # reward for lane keeping, without it vehicle can learn to overtake but fail to keep in lane
-        if self.config["use_lateral"]:
+        if self.config["use_lateral_reward"]:
             lateral_factor = clip(1 - 2 * abs(lateral_now) / vehicle.navigation.get_current_lane_width(), 0.0, 1.0)
         else:
             lateral_factor = 1.0
@@ -225,7 +261,7 @@ class MetaDriveEnv(BaseEnv):
 
         step_info["step_reward"] = reward
 
-        if vehicle.arrive_destination:
+        if self._is_arrive_destination(vehicle):
             reward = +self.config["success_reward"]
         elif self._is_out_of_road(vehicle):
             reward = -self.config["out_of_road_penalty"]
@@ -247,10 +283,10 @@ class MetaDriveEnv(BaseEnv):
                 current_track_vehicle = self.current_track_vehicle
             else:
                 vehicles = list(self.engine.agents.values())
-                if len(vehicles) <= 1:
-                    return
                 if self.current_track_vehicle in vehicles:
                     vehicles.remove(self.current_track_vehicle)
+                if len(vehicles) < 1:
+                    return
                 new_v = get_np_random().choice(vehicles)
                 current_track_vehicle = new_v
         self.main_camera.track(current_track_vehicle)
@@ -263,10 +299,10 @@ class MetaDriveEnv(BaseEnv):
         super(MetaDriveEnv, self).setup_engine()
         self.engine.accept("b", self.switch_to_top_down_view)
         self.engine.accept("q", self.switch_to_third_person_view)
-        from metadrive.manager.traffic_manager import TrafficManager
-        from metadrive.manager.map_manager import MapManager
-        self.engine.register_manager("map_manager", MapManager())
-        self.engine.register_manager("traffic_manager", TrafficManager())
+        from metadrive.manager.traffic_manager import PGTrafficManager
+        from metadrive.manager.map_manager import PGMapManager
+        self.engine.register_manager("map_manager", PGMapManager())
+        self.engine.register_manager("traffic_manager", PGTrafficManager())
 
     def _reset_global_seed(self, force_seed=None):
         current_seed = force_seed if force_seed is not None else \

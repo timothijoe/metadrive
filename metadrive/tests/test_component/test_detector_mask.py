@@ -1,8 +1,8 @@
 import copy
 import logging
-import math
 from collections import defaultdict, namedtuple
 
+import math
 import numpy as np
 
 from metadrive.component.vehicle.base_vehicle import BaseVehicle
@@ -21,7 +21,7 @@ class DetectorMask:
         self.angle_delta = 360 / self.num_lasers
         # self.max_span = max_span
         self.half_max_span_square = (max_span / 2)**2
-        self.masks = defaultdict(lambda: np.zeros((self.num_lasers, ), dtype=np.bool))
+        self.masks = defaultdict(lambda: np.zeros((self.num_lasers, ), dtype=bool))
         # self.max_distance = max_distance + max_span
         self.max_distance_square = (max_distance + max_span)**2
 
@@ -313,5 +313,5 @@ def test_detector_mask_in_lidar():
 
 
 if __name__ == '__main__':
-    test_detector_mask()
+    # test_detector_mask()
     test_detector_mask_in_lidar()

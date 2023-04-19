@@ -14,12 +14,12 @@ We welcome contributions to propose a better representation of the top-down sema
 """
 
 import random
-from metadrive.examples.ppo_expert.numpy_expert import expert
 
 import matplotlib.pyplot as plt
 
 from metadrive import TopDownMetaDrive
 from metadrive.constants import HELP_MESSAGE
+from metadrive.examples.ppo_expert.numpy_expert import expert
 
 
 def draw_multi_channels_top_down_observation(obs, show_time=4):
@@ -70,21 +70,21 @@ if __name__ == "__main__":
             start_seed=random.randint(0, 1000),
         )
     )
-    # try:
-    o = env.reset()
-    for i in range(1, 100000):
-        o, r, d, info = env.step(expert(env.vehicle))
-        env.render(mode="top_down", film_size=(800, 800))
-        if d:
-            env.reset()
-        if i % 50 == 0:
-            draw_multi_channels_top_down_observation(o, show_time=4)  # show time 4s
-            # ret = input("Do you wish to quit? Type any ESC to quite, or press enter to continue")
-            # if len(ret) == 0:
-            #     continue
-            # else:
-            #     break
-    # except:
-    #     pass
-    # finally:
-    #     env.close()
+    try:
+        o = env.reset()
+        for i in range(1, 100000):
+            o, r, d, info = env.step(expert(env.vehicle))
+            env.render(mode="top_down", film_size=(800, 800))
+            if d:
+                env.reset()
+            if i % 50 == 0:
+                draw_multi_channels_top_down_observation(o, show_time=4)  # show time 4s
+                # ret = input("Do you wish to quit? Type any ESC to quite, or press enter to continue")
+                # if len(ret) == 0:
+                #     continue
+                # else:
+                #     break
+    except Exception as e:
+        raise e
+    finally:
+        env.close()

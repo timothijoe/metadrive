@@ -1,11 +1,11 @@
-import math
 from typing import List, Tuple
 
+import math
 from panda3d.bullet import BulletWorld
 from panda3d.core import Vec3
 from panda3d.core import Vec4, BitMask32
 
-EDITION = "MetaDrive v0.2.3"
+EDITION = "MetaDrive v0.2.6.0"
 DEFAULT_AGENT = "default_agent"
 RENDER_MODE_NONE = "none"  # Do not render
 RENDER_MODE_ONSCREEN = "onscreen"  # Pop up a window and draw image in it
@@ -20,6 +20,8 @@ class TerminationState:
     CRASH_VEHICLE = "crash_vehicle"
     CRASH_OBJECT = "crash_object"
     CRASH_BUILDING = "crash_building"
+    CURRENT_BLOCK = "current_block"
+    ENV_SEED = "env_seed"
 
 
 HELP_MESSAGE = "Keyboard Shortcuts:\n" \
@@ -202,7 +204,7 @@ TARGET_VEHICLES = "target_vehicles"
 TRAFFIC_VEHICLES = "traffic_vehicles"
 OBJECT_TO_AGENT = "object_to_agent"
 AGENT_TO_OBJECT = "agent_to_object"
-BKG_COLOR = Vec3(179 / 255, 211 / 255, 216 / 255)
+BKG_COLOR = Vec3(1, 1, 1)
 
 
 class LineType:
@@ -275,6 +277,13 @@ class ObjectState:
     CLASS = "type"
     INIT_KWARGS = "config"
     NAME = "name"
+
+
+class PolicyState:
+    ARGS = "args"
+    KWARGS = "kwargs"
+    POLICY_CLASS = "policy_class"
+    OBJ_NAME = "obj_name"
 
 
 REPLAY_DONE = "replay_done"

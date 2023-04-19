@@ -1,20 +1,61 @@
-import math
-import seaborn as sns
+import logging
 from typing import Dict
-from metadrive.utils import get_np_random
+
+import math
 import numpy as np
+import seaborn as sns
 from panda3d.bullet import BulletWorld, BulletBodyNode
-from panda3d.core import LVector3
-from panda3d.core import NodePath
+from panda3d.core import LVector3, NodePath, PandaNode
 
 from metadrive.base_class.base_runnable import BaseRunnable
 from metadrive.constants import ObjectState
 from metadrive.engine.asset_loader import AssetLoader
 from metadrive.engine.core.physics_world import PhysicsWorld
+from metadrive.engine.physics_node import BaseRigidBodyNode
 from metadrive.utils import Vector
+from metadrive.utils import get_np_random
 from metadrive.utils.coordinates_shift import panda_position, metadrive_position, panda_heading, metadrive_heading
 from metadrive.utils.math_utils import clip
 from metadrive.utils.math_utils import norm
+
+logger = logging.getLogger(__name__)
+
+
+def _clean_a_node_path(node_path):
+    if not node_path.isEmpty():
+        for sub_node_path in node_path.getChildren():
+            _clean_a_node_path(sub_node_path)
+    node_path.detachNode()
+    node_path.removeNode()
+
+
+def clear_node_list(node_path_list):
+    from metadrive.engine.engine_utils import get_engine
+    engine = get_engine()
+    for node_path in node_path_list:
+        if isinstance(node_path, NodePath):
+            _clean_a_node_path(node_path)
+            continue
+
+        elif isinstance(node_path, BaseRigidBodyNode):
+            # PZH: Note that this line is extremely important!!!
+            # It breaks the cycle reference thus we can release nodes!!!
+            # It saves Waymo env!!!
+            node_path.destroy()
+
+        elif isinstance(node_path, BulletBodyNode):
+            pass
+
+        elif isinstance(node_path, PandaNode):
+            node_path.removeAllChildren()
+            node_path.clearPythonTag(node_path.getName())
+
+        else:
+            raise ValueError(node_path)
+
+        if engine is not None:
+            engine.physics_world.static_world.remove(node_path)
+            engine.physics_world.dynamic_world.remove(node_path)
 
 
 class PhysicsNodeList(list):
@@ -45,6 +86,11 @@ class PhysicsNodeList(list):
         for node in self:
             bullet_world.remove(node)
         self.attached = False
+
+    def destroy_node_list(self, bullet_world: BulletWorld):
+        for node in self:
+            bullet_world.remove(node)
+        self.clear()
 
 
 class BaseObject(BaseRunnable):
@@ -90,9 +136,16 @@ class BaseObject(BaseRunnable):
 
         # add color setting for visualization
         color = sns.color_palette("colorblind")
+        color.remove(color[2])  # Remove the green and leave it for special vehicle
         idx = get_np_random().randint(len(color))
         rand_c = color[idx]
-        self.panda_color = rand_c
+        self._panda_color = rand_c
+
+        self._node_path_list = []
+
+    @property
+    def panda_color(self):
+        return self._panda_color
 
     def add_body(self, physics_body):
         if self._body is None:
@@ -104,6 +157,12 @@ class BaseObject(BaseRunnable):
             new_origin.setH(self.origin.getH())
             new_origin.setPos(self.origin.getPos())
             self.origin.getChildren().reparentTo(new_origin)
+
+            # TODO(PZH): We don't call this sentence:. It might cause problem since we don't remove old origin?
+            # self.origin.removeNode()
+
+            self._node_path_list.append(self.origin)
+
             self.origin = new_origin
             self.dynamic_nodes.append(physics_body)
             if self.MASS is not None:
@@ -130,6 +189,7 @@ class BaseObject(BaseRunnable):
             self.origin.reparentTo(parent_node_path)
         self.dynamic_nodes.attach_to_physics_world(physics_world.dynamic_world)
         self.static_nodes.attach_to_physics_world(physics_world.static_world)
+        logger.debug("{} is attached to the world.".format(type(self)))
 
     def detach_from_world(self, physics_world: PhysicsWorld):
         """
@@ -139,21 +199,38 @@ class BaseObject(BaseRunnable):
             self.origin.detachNode()
         self.dynamic_nodes.detach_from_physics_world(physics_world.dynamic_world)
         self.static_nodes.detach_from_physics_world(physics_world.static_world)
+        logger.debug("{} is detached from the world.".format(type(self)))
 
     def destroy(self):
         """
         Fully delete this element and release the memory
         """
-        from metadrive.engine.engine_utils import get_engine
-        engine = get_engine()
-        self.detach_from_world(engine.physics_world)
-        if self._body is not None and hasattr(self.body, "object"):
-            self.body.generated_object = None
-        if self.origin is not None:
-            self.origin.removeNode()
-        self.dynamic_nodes.clear()
-        self.static_nodes.clear()
-        self._config.clear()
+        try:
+            from metadrive.engine.engine_utils import get_engine
+        except ImportError:
+            pass
+        else:
+            engine = get_engine()
+
+            if engine is not None:
+                self.detach_from_world(engine.physics_world)
+                if self._body is not None and hasattr(self.body, "object"):
+                    self.body.generated_object = None
+                if self.origin is not None:
+                    self.origin.removeNode()
+
+                self.dynamic_nodes.destroy_node_list(bullet_world=engine.physics_world.dynamic_world)
+                self.static_nodes.destroy_node_list(bullet_world=engine.physics_world.static_world)
+
+            clear_node_list(self._node_path_list)
+
+            logger.debug("Finish cleaning {} node path.".format(len(self._node_path_list)))
+            self._node_path_list.clear()
+            self._node_path_list = []
+
+            self.dynamic_nodes.clear()
+            self.static_nodes.clear()
+            self._config.clear()
 
     def set_position(self, position, height=0.4):
         """

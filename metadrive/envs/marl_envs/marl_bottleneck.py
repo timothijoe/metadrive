@@ -2,10 +2,8 @@ from metadrive.component.map.pg_map import PGMap
 from metadrive.component.pgblock.bottleneck import Merge, Split
 from metadrive.component.pgblock.first_block import FirstPGBlock
 from metadrive.component.road_network import Road
-from metadrive.envs.marl_envs.marl_inout_roundabout import LidarStateObservationMARound
 from metadrive.envs.marl_envs.multi_agent_metadrive import MultiAgentMetaDrive
-from metadrive.manager.map_manager import MapManager
-from metadrive.obs.observation_base import ObservationBase
+from metadrive.manager.map_manager import PGMapManager
 from metadrive.utils import Config
 from metadrive.utils.math_utils import clip
 
@@ -68,7 +66,7 @@ class MABottleneckMap(PGMap):
         self.blocks.append(split)
 
 
-class MABottleneckMapManager(MapManager):
+class MABottleneckPGMapManager(PGMapManager):
     def reset(self):
         config = self.engine.global_config
         if len(self.spawned_objects) == 0:
@@ -87,9 +85,6 @@ class MultiAgentBottleneckEnv(MultiAgentMetaDrive):
         assert MABottleneckConfig["vehicle_config"]["lane_line_detector"]["num_lasers"] > 2
         MABottleneckConfig["map_config"]["lane_num"] = MABottleneckConfig["map_config"]["bottle_lane_num"]
         return MultiAgentMetaDrive.default_config().update(MABottleneckConfig, allow_add_new_key=True)
-
-    def get_single_observation(self, vehicle_config: "Config") -> "ObservationBase":
-        return LidarStateObservationMARound(vehicle_config)
 
     def reward_function(self, vehicle_id: str):
         """
@@ -110,7 +105,7 @@ class MultiAgentBottleneckEnv(MultiAgentMetaDrive):
         long_now, lateral_now = current_lane.local_coordinates(vehicle.position)
 
         # reward for lane keeping, without it vehicle can learn to overtake but fail to keep in lane
-        if self.config["use_lateral"]:
+        if self.config["use_lateral_reward"]:
             lateral_factor = clip(1 - 2 * abs(lateral_now) / vehicle.navigation.get_current_lane_width(), 0.0, 1.0)
         else:
             lateral_factor = 1.0
@@ -121,7 +116,7 @@ class MultiAgentBottleneckEnv(MultiAgentMetaDrive):
 
         step_info["step_reward"] = reward
 
-        if vehicle.arrive_destination:
+        if self._is_arrive_destination(vehicle):
             reward = +self.config["success_reward"]
         elif self._is_out_of_road(vehicle):
             reward = -self.config["out_of_road_penalty"]
@@ -141,7 +136,7 @@ class MultiAgentBottleneckEnv(MultiAgentMetaDrive):
 
     def setup_engine(self):
         super(MultiAgentBottleneckEnv, self).setup_engine()
-        self.engine.update_manager("map_manager", MABottleneckMapManager())
+        self.engine.update_manager("map_manager", MABottleneckPGMapManager())
 
 
 def _draw():

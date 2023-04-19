@@ -11,7 +11,7 @@ from metadrive.utils import setup_logger, get_np_random, Config
 MULTI_AGENT_METADRIVE_DEFAULT_CONFIG = dict(
     # ===== Multi-agent =====
     is_multi_agent=True,
-    num_agents=12,
+    num_agents=15,
     # If num_agents is set to None, then endless vehicles will be added only the empty spawn points exist
     random_agent_model=False,
 
@@ -29,6 +29,7 @@ MULTI_AGENT_METADRIVE_DEFAULT_CONFIG = dict(
     # that, the episode won't terminate until all existing vehicles reach their horizon or done. The vehicle specified
     # horizon is also this value.
     horizon=1000,
+    max_step_per_agent=1000,  # Per agent maximum episode steps
 
     # Use to determine what neighborhood means
     neighbours_distance=10,
@@ -37,8 +38,15 @@ MULTI_AGENT_METADRIVE_DEFAULT_CONFIG = dict(
     vehicle_config=dict(
         lidar=dict(num_lasers=72, distance=40, num_others=0),
         random_color=True,
-        not_randomize=False,
-        spawn_lane_index=(FirstPGBlock.NODE_1, FirstPGBlock.NODE_2, 0)
+        spawn_lane_index=(FirstPGBlock.NODE_1, FirstPGBlock.NODE_2, 0),
+        _specified_spawn_lane=False,  # automatically filled
+        _specified_destination=False,  # automatically filled
+
+        # We remove dynamics randomization in Multi-agent environments to make the results aligned with previous
+        # results published in papers. See
+        # https://github.com/metadriverse/metadrive/issues/161#issuecomment-1080114029
+        # for more information
+        vehicle_model="static_default",
     ),
     target_vehicle_configs=dict(),
 
@@ -102,8 +110,11 @@ class MultiAgentMetaDrive(MetaDriveEnv):
             agent_id = "agent{}".format(id)
             config = copy.deepcopy(ret_config["vehicle_config"])
             if agent_id in ret_config["target_vehicle_configs"]:
+                config["_specified_spawn_lane"
+                       ] = True if "spawn_lane_index" in ret_config["target_vehicle_configs"][agent_id] else False
+                config["_specified_destination"
+                       ] = True if "destination" in ret_config["target_vehicle_configs"][agent_id] else False
                 config.update(ret_config["target_vehicle_configs"][agent_id])
-                config["not_randomize"] = True
             target_vehicle_configs[agent_id] = config
         ret_config["target_vehicle_configs"] = target_vehicle_configs
         return ret_config
@@ -130,21 +141,25 @@ class MultiAgentMetaDrive(MetaDriveEnv):
         o, r, d, i = self._after_vehicle_done(o, r, d, i)
 
         # Update respawn manager
-        if self.episode_steps >= self.config["horizon"]:
+        if self.episode_step >= self.config["horizon"]:
             self.agent_manager.set_allow_respawn(False)
-        new_obs_dict = self._respawn_vehicles(randomize_position=self.config["random_traffic"])
+        new_obs_dict, new_info_dict = self._respawn_vehicles(randomize_position=self.config["random_traffic"])
         if new_obs_dict:
             for new_id, new_obs in new_obs_dict.items():
                 o[new_id] = new_obs
                 r[new_id] = 0.0
-                i[new_id] = {}
+                i[new_id] = new_info_dict[new_id]
                 d[new_id] = False
 
         # Update __all__
-        d["__all__"] = (
-            ((self.episode_steps >= self.config["horizon"]) and (all(d.values()))) or (len(self.vehicles) == 0)
-            or (self.episode_steps >= 5 * self.config["horizon"])
-        )
+        d_all = False
+        if self.config["horizon"] is not None:  # No agent alive or a too long episode happens
+            if (self.episode_step >= self.config["horizon"] and all(d.values())) or \
+                    (self.episode_step >= 5 * self.config["horizon"]):
+                d_all = True
+        if len(self.vehicles) == 0:  # No agent alive
+            d_all = True
+        d["__all__"] = d_all
         if d["__all__"]:
             for k in d.keys():
                 d[k] = True
@@ -179,15 +194,17 @@ class MultiAgentMetaDrive(MetaDriveEnv):
 
     def _respawn_vehicles(self, randomize_position=False):
         new_obs_dict = {}
+        new_info_dict = {}
         if not self.agent_manager.allow_respawn:
-            return new_obs_dict
+            return new_obs_dict, new_info_dict
         while True:
-            new_id, new_obs = self._respawn_single_vehicle(randomize_position=randomize_position)
+            new_id, new_obs, step_info = self._respawn_single_vehicle(randomize_position=randomize_position)
             if new_obs is not None:
                 new_obs_dict[new_id] = new_obs
+                new_info_dict[new_id] = step_info
             else:
                 break
-        return new_obs_dict
+        return new_obs_dict, new_info_dict
 
     def _respawn_single_vehicle(self, randomize_position=False):
         """
@@ -197,20 +214,21 @@ class MultiAgentMetaDrive(MetaDriveEnv):
             self.current_map, randomize=randomize_position
         )
         if len(safe_places_dict) == 0:
-            return None, None
+            return None, None, None
         born_place_index = get_np_random(self._DEBUG_RANDOM_SEED).choice(list(safe_places_dict.keys()), 1)[0]
         new_spawn_place = safe_places_dict[born_place_index]
 
-        new_agent_id, vehicle = self.agent_manager.propose_new_vehicle()
+        new_agent_id, vehicle, step_info = self.agent_manager.propose_new_vehicle()
         new_spawn_place_config = new_spawn_place["config"]
         new_spawn_place_config = self.engine.spawn_manager.update_destination_for(new_agent_id, new_spawn_place_config)
         vehicle.config.update(new_spawn_place_config)
         vehicle.reset()
-        vehicle.after_step()
+        after_step_info = vehicle.after_step()
+        step_info.update(after_step_info)
         self.dones[new_agent_id] = False  # Put it in the internal dead-tracking dict.
 
         new_obs = self.observations[new_agent_id].observe(vehicle)
-        return new_agent_id, new_obs
+        return new_agent_id, new_obs, step_info
 
     def setup_engine(self):
         super(MultiAgentMetaDrive, self).setup_engine()
@@ -255,7 +273,20 @@ def _vis():
             "start_seed": 8000,
             "environment_num": 1,
             "map": "SSS",
-
+            "vehicle_config": {
+                "vehicle_model": "s"
+            },
+            "target_vehicle_configs": {
+                "agent0": {
+                    "vehicle_model": "static_default"
+                },
+                "agent1": {
+                    "vehicle_model": "l"
+                },
+                "agent2": {
+                    "vehicle_model": "xl"
+                }
+            },
             # "allow_respawn": False,
             # "manual_control": True,
         }

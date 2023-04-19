@@ -1,4 +1,3 @@
-import copy
 from typing import Dict
 
 from metadrive.base_class.configurable import Configurable
@@ -26,7 +25,7 @@ class BaseRunnable(Configurable, Nameable, Randomizable):
         ), "Using PGSpace to define parameter spaces of " + self.class_name
         self.sample_parameters()
         # use external config update to overwrite sampled parameters, except None
-        self.update_config(copy.copy(config), allow_add_new_key=True)
+        self.update_config(config, allow_add_new_key=True)
 
     def get_state(self) -> Dict:
         """
@@ -71,7 +70,7 @@ class BaseRunnable(Configurable, Nameable, Randomizable):
         After advancing all objects for a time period, their state should be updated for statistic or other purpose
         """
 
-    def reset(self, random_seed, *args, **kwargs):
+    def reset(self, random_seed=None, *args, **kwargs):
         """
         Call this function to re-init objects. Since some __init__ process of creating objects is redundant, reset can
         help us reuse this object by resetting some necessary attributes
@@ -82,7 +81,13 @@ class BaseRunnable(Configurable, Nameable, Randomizable):
         """
         Fix a value of the random parameters in PARAMETER_SPACE
         """
+
+        # PZH: Original one which causes memory leaks
         random_seed = self.np_random.randint(low=0, high=int(1e6))
+
+        # TODO(PZH): New one that should fix the bug!
+        # random_seed = self.generate_seed()
+
         self.PARAMETER_SPACE.seed(random_seed)
         ret = self.PARAMETER_SPACE.sample()
         self.update_config(ret)

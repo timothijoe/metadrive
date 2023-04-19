@@ -137,7 +137,7 @@ def test_ma_toll_horizon():
                         assert i[kkk]["out_of_road"]
 
                 for kkk, iii in i.items():
-                    if iii and (iii["out_of_road"] or iii["cost"] == 778):
+                    if "out_of_road" in iii and (iii["out_of_road"] or iii["cost"] == 778):
                         assert d[kkk]
                         assert i[kkk]["cost"] == 778
                         assert i[kkk]["out_of_road"]
@@ -205,9 +205,9 @@ def test_ma_toll_reset():
                         v.navigation.get_current_lane_width() / 2 >= lat >=
                         (0.5 - v.navigation.get_current_lane_num()) * v.navigation.get_current_lane_width()
                     )
-                    if not v.arrive_destination:
+                    if not env._is_arrive_destination(v):
                         print('sss')
-                    assert v.arrive_destination
+                    assert env._is_arrive_destination(v)
 
                 act = {k: [0, 0] for k in env.vehicles.keys()}
                 o, r, d, i = _act(env, act)
@@ -216,7 +216,7 @@ def test_ma_toll_reset():
                     assert len(v.navigation.checkpoints) > 2
 
                 for kkk, iii in i.items():
-                    if iii and iii["arrive_dest"]:
+                    if "arrive_dest" in iii and iii["arrive_dest"]:
                         # print("{} success!".format(kkk))
                         success_count += 1
 
@@ -704,7 +704,7 @@ if __name__ == '__main__':
     # test_ma_toll_env()
     # test_ma_toll_horizon()
     # test_ma_toll_reset()
-    test_ma_toll_reward_done_alignment()
+    test_ma_toll_reward_done_alignment_1()
     # test_ma_toll_close_spawn()
     # test_ma_toll_reward_sign()
     # test_ma_toll_init_space()

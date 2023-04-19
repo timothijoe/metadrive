@@ -3,10 +3,10 @@ from collections import deque
 
 import numpy as np
 
+from metadrive.component.lane.straight_lane import StraightLane
 from metadrive.component.pgblock.create_pg_block_utils import CreateAdverseRoad, CreateRoadFrom, ExtendStraightLane, \
     create_bend_straight
 from metadrive.component.pgblock.pg_block import PGBlock, PGBlockSocket
-from metadrive.component.lane.straight_lane import StraightLane
 from metadrive.component.road_network import Road
 from metadrive.constants import LineType
 from metadrive.utils.scene_utils import check_lane_on_road
@@ -37,11 +37,20 @@ class InterSection(PGBlock):
     PARAMETER_SPACE = ParameterSpace(BlockParameterSpace.INTERSECTION)
     SOCKET_NUM = 3
     ANGLE = 90  # may support other angle in the future
-    EXIT_PART_LENGTH = 30
+    EXIT_PART_LENGTH = 35
 
-    enable_u_turn = False
+    _enable_u_turn_flag = False
 
     # LEFT_TURN_NUM = 1 now it is useless
+
+    def __init__(self, *args, **kwargs):
+        if "radius" in kwargs:
+            self.radius = kwargs.pop("radius")
+        else:
+            self.radius = None
+        super(InterSection, self).__init__(*args, **kwargs)
+        if self.radius is None:
+            self.radius = self.get_config(copy=False)[Parameter.radius]
 
     def _try_plug_into_previous_block(self) -> bool:
         para = self.get_config()
@@ -63,9 +72,7 @@ class InterSection(PGBlock):
         )
 
         for i in range(4):
-            right_lane, success = self._create_part(
-                attach_lanes, attach_road, para[Parameter.radius], intersect_nodes, i
-            )
+            right_lane, success = self._create_part(attach_lanes, attach_road, self.radius, intersect_nodes, i)
             no_cross = no_cross and success
             if i != 3:
                 lane_num = self.positive_lane_num if i == 1 else self.lane_num_intersect
@@ -101,7 +108,7 @@ class InterSection(PGBlock):
         self._create_left_turn(radius, lane_num, attach_left_lane, attach_road, intersect_nodes, part_idx)
 
         # u-turn
-        if self.enable_u_turn:
+        if self._enable_u_turn_flag:
             adverse_road = -attach_road
             self._create_u_turn(attach_road, part_idx)
 
@@ -230,8 +237,8 @@ class InterSection(PGBlock):
             ignore_intersection_checking=self.ignore_intersection_checking
         )
 
-    def add_u_turn(self, enable_u_turn: bool):
-        self.enable_u_turn = enable_u_turn
+    def enable_u_turn(self, enable_u_turn: bool):
+        self._enable_u_turn_flag = enable_u_turn
 
     def get_intermediate_spawn_lanes(self):
         """Override this function for intersection so that we won't spawn vehicles in the center of intersection."""

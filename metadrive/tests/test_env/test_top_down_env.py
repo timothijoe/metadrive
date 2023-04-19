@@ -24,5 +24,32 @@ def test_top_down_rendering():
             env.close()
 
 
+def _vis_top_down_with_panda_render():
+    env = TopDownMetaDrive(dict(use_render=True))
+    try:
+        o = env.reset()
+        for i in range(1000):
+            o, r, d, i = env.step([0, 1])
+            if d:
+                break
+    finally:
+        env.close()
+
+
+def _vis_top_down_with_panda_render_and_top_down_visualization():
+    env = TopDownMetaDrive(dict(use_render=True))
+    try:
+        o = env.reset()
+        for i in range(2000):
+            o, r, d, i = env.step([0, 1])
+            if d:
+                break
+            env.render(mode="topdown")
+    finally:
+        env.close()
+
+
 if __name__ == "__main__":
-    test_top_down_rendering()
+    # test_top_down_rendering()
+    # _vis_top_down_with_panda_render()
+    _vis_top_down_with_panda_render_and_top_down_visualization()

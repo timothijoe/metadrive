@@ -3,6 +3,7 @@ from typing import Dict
 
 from gym.spaces import Box, Dict, MultiDiscrete
 
+from metadrive.constants import DEFAULT_AGENT
 from metadrive.manager.base_manager import BaseManager
 from metadrive.policy.AI_protect_policy import AIProtectPolicy
 from metadrive.policy.env_input_policy import EnvInputPolicy
@@ -46,6 +47,7 @@ class AgentManager(BaseManager):
         self._init_action_spaces = init_action_space
         self.observation_spaces = copy.copy(observation_space)
         self.action_spaces = copy.copy(init_action_space)
+        self.episode_created_agents = None
 
         # this map will be override when the env.init() is first called and vehicles are made
         self._agent_to_object = {k: k for k in self.observations.keys()}  # no target vehicles created, fake init
@@ -60,44 +62,61 @@ class AgentManager(BaseManager):
     def _get_vehicles(self, config_dict: dict):
         from metadrive.component.vehicle.vehicle_type import random_vehicle_type, vehicle_type
         ret = {}
-        v_type = random_vehicle_type(self.np_random) if self.engine.global_config["random_agent_model"] else \
-            vehicle_type[self.engine.global_config["vehicle_config"]["vehicle_model"]]
         for agent_id, v_config in config_dict.items():
+            v_type = random_vehicle_type(self.np_random) if self.engine.global_config["random_agent_model"] else \
+                vehicle_type[v_config["vehicle_model"] if v_config.get("vehicle_model", False) else "default"]
             obj = self.spawn_object(v_type, vehicle_config=v_config)
             ret[agent_id] = obj
-            policy = self._get_policy(obj)
-            self.engine.add_policy(obj.id, policy)
+            policy_cls = self.get_policy()
+            self.add_policy(obj.id, policy_cls, obj, self.generate_seed())
         return ret
 
-    def _get_policy(self, obj):
+    def get_policy(self):
         # note: agent.id = object id
         if self.engine.global_config["agent_policy"] is not None:
-            return self.engine.global_config["agent_policy"](obj, self.generate_seed())
-        if self.engine.global_config["manual_control"] and self.engine.global_config["use_render"]:
+            return self.engine.global_config["agent_policy"]
+        if self.engine.global_config["manual_control"]:
             if self.engine.global_config.get("use_AI_protector", False):
-                policy = AIProtectPolicy(obj, self.generate_seed())
+                policy = AIProtectPolicy
             else:
-                policy = ManualControlPolicy(obj, self.generate_seed())
+                policy = ManualControlPolicy
         else:
-            policy = EnvInputPolicy(obj, self.generate_seed())
+            policy = EnvInputPolicy
         return policy
 
     def before_reset(self):
         if not self.INITIALIZED:
             super(AgentManager, self).__init__()
             self.INITIALIZED = True
+
+        self.episode_created_agents = None
+
+        if not self.engine.replay_episode:
+            for v in self.dying_agents.values():
+                self._remove_vehicle(v)
+
+        for v in self.get_vehicle_list():
+            if hasattr(v, "before_reset"):
+                v.before_reset()
+
         super(AgentManager, self).before_reset()
 
     def reset(self):
         """
         Agent manager is really initialized after the BaseVehicle Instances are created
         """
+        self.random_spawn_lane_in_single_agent()
         config = self.engine.global_config
         self._debug = config["debug"]
         self._delay_done = config["delay_done"]
         self._infinite_agents = config["num_agents"] == -1
         self._allow_respawn = config["allow_respawn"]
-        init_vehicles = self._get_vehicles(config_dict=self.engine.global_config["target_vehicle_configs"])
+        self.episode_created_agents = self._get_vehicles(
+            config_dict=self.engine.global_config["target_vehicle_configs"]
+        )
+
+    def after_reset(self):
+        init_vehicles = self.episode_created_agents
         vehicles_created = set(init_vehicles.keys())
         vehicles_in_config = set(self._init_observations.keys())
         assert vehicles_created == vehicles_in_config, "{} not defined in target vehicles config".format(
@@ -127,6 +146,31 @@ class AgentManager(BaseManager):
             self.action_spaces[vehicle.name] = action_space
             assert isinstance(action_space, Box) or isinstance(action_space, MultiDiscrete)
         self.next_agent_count = len(init_vehicles)
+
+    def set_state(self, state: dict, old_name_to_current=None):
+        super(AgentManager, self).set_state(state, old_name_to_current)
+        created_agents = state["created_agents"]
+        created_agents = {agent_id: old_name_to_current[obj_name] for agent_id, obj_name in created_agents.items()}
+        episode_created_agents = {}
+        for a_id, name in created_agents.items():
+            episode_created_agents[a_id] = self.engine.get_objects([name])[name]
+        self.episode_created_agents = episode_created_agents
+
+    def get_state(self):
+        ret = super(AgentManager, self).get_state()
+        agent_info = {agent_id: obj.name for agent_id, obj in self.episode_created_agents.items()}
+        ret["created_agents"] = agent_info
+        return ret
+
+    def random_spawn_lane_in_single_agent(self):
+        if not self.engine.global_config["is_multi_agent"] and \
+                self.engine.global_config.get("random_spawn_lane_index", False) and self.engine.current_map is not None:
+            spawn_road_start = self.engine.global_config["target_vehicle_configs"][DEFAULT_AGENT]["spawn_lane_index"][0]
+            spawn_road_end = self.engine.global_config["target_vehicle_configs"][DEFAULT_AGENT]["spawn_lane_index"][1]
+            index = self.np_random.randint(self.engine.current_map.config["lane_num"])
+            self.engine.global_config["target_vehicle_configs"][DEFAULT_AGENT]["spawn_lane_index"] = (
+                spawn_road_start, spawn_road_end, index
+            )
 
     def finish(self, agent_name, ignore_delay_done=False):
         """
@@ -163,9 +207,9 @@ class AgentManager(BaseManager):
         self.action_spaces[new_v_name] = self._init_action_spaces["agent0"]
         self._active_objects[vehicle.name] = vehicle
         self._check()
-        vehicle.before_step([0, 0])
+        step_info = vehicle.before_step([0, 0])
         vehicle.set_static(False)
-        return agent_name, vehicle
+        return agent_name, vehicle, step_info
 
     def next_agent_id(self):
         ret = "agent{}".format(self.next_agent_count)
@@ -181,6 +225,7 @@ class AgentManager(BaseManager):
         step_infos = {}
         for agent_id in self.active_agents.keys():
             policy = self.engine.get_policy(self._agent_to_object[agent_id])
+            assert policy is not None, "No policy is set for agent {}".format(agent_id)
             action = policy.act(agent_id)
             step_infos[agent_id] = policy.get_action_info()
             step_infos[agent_id].update(self.get_agent(agent_id).before_step(action))
@@ -188,7 +233,7 @@ class AgentManager(BaseManager):
         finished = set()
         for v_name in self._dying_objects.keys():
             self._dying_objects[v_name][1] -= 1
-            if self._dying_objects[v_name][1] == 0:  # Countdown goes to 0, it's time to remove the vehicles!
+            if self._dying_objects[v_name][1] <= 0:  # Countdown goes to 0, it's time to remove the vehicles!
                 v = self._dying_objects[v_name][0]
                 self._remove_vehicle(v)
                 finished.add(v_name)
@@ -246,10 +291,24 @@ class AgentManager(BaseManager):
         """
         Return Map<agent_id, BaseVehicle>
         """
-        return self.engine.replay_manager.replay_agents if hasattr(self, "engine") and self.engine.replay_episode else {
-            self._object_to_agent[k]: v
-            for k, v in self._active_objects.items()
-        }
+        if hasattr(self, "engine") and self.engine.replay_episode:
+            return self.engine.replay_manager.replay_agents
+        else:
+            return {self._object_to_agent[k]: v for k, v in self._active_objects.items()}
+
+    @property
+    def dying_agents(self):
+        assert not self.engine.replay_episode
+        return {self._object_to_agent[k]: v for k, (v, _) in self._dying_objects.items()}
+
+    @property
+    def just_terminated_agents(self):
+        assert not self.engine.replay_episode
+        ret = {}
+        for agent_name, v_name in self._agents_finished_this_frame.items():
+            v = self.get_object(v_name, raise_error=False)
+            ret[agent_name] = v
+        return ret
 
     @property
     def active_objects(self):
@@ -264,13 +323,16 @@ class AgentManager(BaseManager):
         object_name = self.agent_to_object(agent_name)
         return self.get_object(object_name)
 
-    def get_object(self, object_name):
+    def get_object(self, object_name, raise_error=True):
         if object_name in self._active_objects:
             return self._active_objects[object_name]
         elif object_name in self._dying_objects:
-            return self._dying_objects[object_name]
+            return self._dying_objects[object_name][0]
         else:
-            raise ValueError("Object {} not found!".format(object_name))
+            if raise_error:
+                raise ValueError("Object {} not found!".format(object_name))
+            else:
+                return None
 
     def object_to_agent(self, obj_name):
         """
@@ -311,10 +373,10 @@ class AgentManager(BaseManager):
         self.next_agent_count = 0
         self.INITIALIZED = False
 
-    def _put_to_dying_queue(self, v):
+    def _put_to_dying_queue(self, v, ignore_delay_done=False):
         vehicle_name = v.name
         v.set_static(True)
-        self._dying_objects[vehicle_name] = [v, self._delay_done]
+        self._dying_objects[vehicle_name] = [v, 0 if ignore_delay_done else self._delay_done]
 
     def _remove_vehicle(self, vehicle):
         vehicle_name = vehicle.name

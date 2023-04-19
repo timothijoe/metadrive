@@ -2,9 +2,10 @@ import os
 import signal
 import sys
 
-from metadrive.envs.waymo_env import WaymoEnv
-from metadrive.policy.idm_policy import WaymoIDMPolicy
 from tqdm import tqdm
+
+from metadrive.envs.real_data_envs.waymo_env import WaymoEnv
+from metadrive.policy.idm_policy import WaymoIDMPolicy
 
 try:
     from metadrive.utils.waymo_utils.waymo_utils import AgentType
@@ -20,25 +21,28 @@ def handler(signum, frame):
 
 if __name__ == "__main__":
     case_data_path = sys.argv[1]
+    start = int(sys.argv[2])
     processed_data_path = case_data_path + "_filtered"
     if not os.path.exists(processed_data_path):
         os.mkdir(processed_data_path)
     if not os.path.exists(case_data_path) or not os.path.exists(processed_data_path):
         raise ValueError("Path Not exist")
     case_num = len(os.listdir(case_data_path))
-    max_step = 1000
-    min_step = 100
+    max_step = 1500
+    min_step = 50
 
     env = WaymoEnv(
         {
             "use_render": False,
             "agent_policy": WaymoIDMPolicy,
             "waymo_data_directory": case_data_path,
+            "start_case_index": start * 1000,
             "case_num": case_num,
             "store_map": False,
             # "manual_control": True,
             # "debug":True,
-            "horizon": 1000,
+            "no_traffic": True,
+            "horizon": 1500,
         }
     )
     try:
@@ -54,11 +58,11 @@ if __name__ == "__main__":
             env.reset(force_seed=i)
             while True:
                 o, r, d, info = env.step([0, 0])
-                if d or env.episode_steps > max_step:
-                    if info["arrive_dest"] and env.episode_steps > min_step:
+                if d or env.episode_step > max_step:
+                    if info["arrive_dest"] and env.episode_step > min_step:
                         os.rename(
-                            os.path.join(case_data_path, "{}.pkl".format(i)),
-                            os.path.join(processed_data_path, "{}.pkl".format(i))
+                            os.path.join(case_data_path, "{}.pkl".format(i + start * 1000)),
+                            os.path.join(processed_data_path, "{}.pkl".format(i + start * 1000))
                         )
                     break
         except:

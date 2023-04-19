@@ -27,10 +27,13 @@ class ImageBuffer:
         bkg_color: Union[Vec4, Vec3],
         parent_node: NodePath = None,
         frame_buffer_property=None,
-        engine=None
+        # engine=None
     ):
-        from metadrive.engine.engine_utils import get_engine
-        self.engine = engine or get_engine()
+
+        self._node_path_list = []
+
+        # from metadrive.engine.engine_utils import get_engine
+        # self.engine = engine or get_engine()
         try:
             assert self.engine.win is not None, "{} cannot be made without use_render or offscreen_render".format(
                 self.__class__.__name__
@@ -40,6 +43,8 @@ class ImageBuffer:
             logging.debug("Cannot create {}".format(self.__class__.__name__))
             self.buffer = None
             self.cam = NodePath(Camera("non-sense camera"))
+            self._node_path_list.append(self.cam)
+
             self.lens = self.cam.node().getLens()
             return
 
@@ -65,6 +70,11 @@ class ImageBuffer:
             self.origin.reparentTo(parent_node)
         logging.debug("Load Image Buffer: {}".format(self.__class__.__name__))
 
+    @property
+    def engine(self):
+        from metadrive.engine.engine_utils import get_engine
+        return get_engine()
+
     def get_image(self):
         """
         Bugs here! when use offscreen mode, thus the front cam obs is not from front cam now
@@ -81,15 +91,19 @@ class ImageBuffer:
         img = self.get_image()
         img.write(name)
 
-    def get_pixels_array(self, clip=True) -> np.ndarray:
-        """
-        default: For gray scale image, one channel. Override this func, when you want a new obs type
-        """
-        img = self.get_image()
-        return self.convert_to_array(img, clip)
+    def get_rgb_array(self):
+        if self.engine.episode_step <= 1:
+            self.engine.graphicsEngine.renderFrame()
+        origin_img = self.cam.node().getDisplayRegion(0).getScreenshot()
+        v = memoryview(origin_img.getRamImage()).tolist()
+        img = np.array(v, dtype=np.uint8)
+        img = img.reshape((origin_img.getYSize(), origin_img.getXSize(), 4))
+        img = img[::-1]
+        return img[..., :-1]
 
     @staticmethod
-    def convert_to_array(img, clip=True):
+    def get_grayscale_array(img, clip=True):
+        raise DeprecationWarning("This API is deprecated")
         if not clip:
             numpy_array = np.array(
                 [[int(img.getGray(i, j) * 255) for j in range(img.getYSize())] for i in range(img.getXSize())],
@@ -146,6 +160,9 @@ class ImageBuffer:
         self.line_borders = []
         if hasattr(self, "origin"):
             self.origin.removeNode()
+
+        from metadrive.base_class.base_object import clear_node_list
+        clear_node_list(self._node_path_list)
 
     def __del__(self):
         logging.debug("{} is destroyed".format(self.__class__.__name__))

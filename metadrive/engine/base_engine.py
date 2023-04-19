@@ -6,6 +6,7 @@ from typing import Callable, Optional, Union, List, Dict, AnyStr
 
 import numpy as np
 
+from metadrive.base_class.base_object import BaseObject
 from metadrive.base_class.randomizable import Randomizable
 from metadrive.engine.core.engine_core import EngineCore
 from metadrive.engine.interface import Interface
@@ -38,6 +39,7 @@ class BaseEngine(EngineCore, Randomizable):
         # for recovering, they can not exist together
         self.record_episode = False
         self.replay_episode = False
+        self.only_reset_when_replay = False
         # self.accept("s", self._stop_replay)
 
         # cull scene
@@ -56,8 +58,22 @@ class BaseEngine(EngineCore, Randomizable):
         # store external actions
         self.external_actions = None
 
-    def add_policy(self, object_id, policy):
+        # topdown renderer
+        self._top_down_renderer = None
+
+    def add_policy(self, object_id, policy_class, *args, **kwargs):
+        policy = policy_class(*args, **kwargs)
         self._object_policies[object_id] = policy
+        if self.record_episode:
+            assert self.record_manager is not None, "No record manager"
+            filtered_args = []
+            for arg in args:
+                filtered_args.append(arg) if not isinstance(arg, BaseObject) else filtered_args.append(BaseObject)
+            filtered_kwargs = {}
+            for k, v in kwargs.items():
+                filtered_kwargs[k] = v if not isinstance(arg, BaseObject) else BaseObject
+            self.record_manager.add_policy_info(object_id, policy_class, filtered_args, kwargs)
+        return policy
 
     def add_task(self, object_id, task):
         self._object_tasks[object_id] = task
@@ -68,8 +84,11 @@ class BaseEngine(EngineCore, Randomizable):
         :param object_id: a filter function, only return objects satisfying this condition
         :return: policy
         """
-        assert object_id in self._object_policies, "Can not find the policy for object(id: {})".format(object_id)
-        return self._object_policies[object_id]
+        if object_id in self._object_policies:
+            return self._object_policies[object_id]
+        else:
+            # print("Can not find the policy for object(id: {})".format(object_id))
+            return None
 
     def get_task(self, object_id):
         """
@@ -105,7 +124,7 @@ class BaseEngine(EngineCore, Randomizable):
             obj = self._dying_objects[object_class.__name__].pop()
             obj.reset(**kwargs)
         if self.global_config["record_episode"] and not self.replay_episode:
-            self.record_manager.add_spawn_info(object_class, kwargs, obj.name)
+            self.record_manager.add_spawn_info(obj.name, object_class, kwargs)
         self._spawned_objects[obj.id] = obj
         obj.attach_to_world(self.pbr_worldNP if pbr_model else self.worldNP, self.physics_world)
         return obj
@@ -140,6 +159,8 @@ class BaseEngine(EngineCore, Randomizable):
         Since we don't expect a iterator, and the number of objects is not so large, we don't use built-in filter()
         If force_destroy=True, we will destroy this element instead of storing them for next time using
         """
+        force_destroy_this_obj = True if force_destroy or self.global_config["force_destroy"] else False
+
         if isinstance(filter, list):
             exclude_objects = {obj_id: self._spawned_objects[obj_id] for obj_id in filter}
         elif callable(filter):
@@ -156,16 +177,37 @@ class BaseEngine(EngineCore, Randomizable):
             if id in self._object_policies:
                 policy = self._object_policies.pop(id)
                 policy.destroy()
-            if force_destroy:
+            if force_destroy_this_obj:
                 obj.destroy()
             else:
                 obj.detach_from_world(self.physics_world)
+
+                # We might want to remove some episode-relevant information when recycling some objects
+                if hasattr(obj, "before_reset"):
+                    obj.before_reset()
+
                 if obj.class_name not in self._dying_objects:
                     self._dying_objects[obj.class_name] = []
-                self._dying_objects[obj.class_name].append(obj)
+                # We have a limit for buffering objects
+                if len(self._dying_objects[obj.class_name]) < self.global_config["num_buffering_objects"]:
+                    self._dying_objects[obj.class_name].append(obj)
+                else:
+                    obj.destroy()
             if self.global_config["record_episode"] and not self.replay_episode:
                 self.record_manager.add_clear_info(obj)
         return exclude_objects.keys()
+
+    def clear_object_if_possible(self, obj, force_destroy):
+        if isinstance(obj, dict):
+            return
+        if obj in self._spawned_objects:
+            self.clear_objects([obj], force_destroy=force_destroy)
+        if force_destroy and \
+                obj.class_name in self._dying_objects and \
+                obj in self._dying_objects[obj.class_name]:
+            self._dying_objects[obj.class_name].remove(obj)
+            if hasattr(obj, "destroy"):
+                obj.destroy()
 
     def reset(self):
         """
@@ -177,19 +219,47 @@ class BaseEngine(EngineCore, Randomizable):
         if self.global_config["debug_physics_world"]:
             self.addTask(self.report_body_nums, "report_num")
 
-        # record replay
+        # Update record replay
         self.replay_episode = True if self.global_config["replay_episode"] is not None else False
         self.record_episode = self.global_config["record_episode"]
+        self.only_reset_when_replay = self.global_config["only_reset_when_replay"]
+
+        # def process_memory():
+        #     import psutil
+        #     import os
+        #     process = psutil.Process(os.getpid())
+        #     mem_info = process.memory_info()
+        #     return mem_info.rss
+        #
+        # cm = process_memory()
 
         # reset manager
-        for manager in self._managers.values():
+        for manager_name, manager in self._managers.items():
             # clean all manager
             manager.before_reset()
+
+            # lm = process_memory()
+            # print("{}: Before Reset! Mem Change {:.3f}MB".format(manager_name, (lm - cm) / 1e6))
+            # cm = lm
+
         self._object_clean_check()
-        for manager in self.managers.values():
+
+        for manager_name, manager in self.managers.items():
+            if self.replay_episode and self.only_reset_when_replay and manager is not self.replay_manager:
+                # The scene will be generated from replay manager in only reset replay mode
+                continue
             manager.reset()
-        for manager in self.managers.values():
+
+            # lm = process_memory()
+            # print("{}: Reset! Mem Change {:.3f}MB".format(manager_name, (lm - cm) / 1e6))
+            # cm = lm
+
+        for manager_name, manager in self.managers.items():
             manager.after_reset()
+
+            # lm = process_memory()
+            # print("{}: After Reset! Mem Change {:.3f}MB".format(manager_name, (lm - cm) / 1e6))
+            # cm = lm
 
         # reset cam
         if self.main_camera is not None:
@@ -199,8 +269,8 @@ class BaseEngine(EngineCore, Randomizable):
                 current_track_vehicle = vehicles[0]
                 self.main_camera.set_follow_lane(self.global_config["use_chase_camera_follow_lane"])
                 self.main_camera.track(current_track_vehicle)
-                if self.global_config["is_multi_agent"]:
-                    self.main_camera.stop_track(bird_view_on_current_position=False)
+                # if self.global_config["is_multi_agent"]:
+                #     self.main_camera.stop_track(bird_view_on_current_position=False)
         self.taskMgr.step()
 
     def before_step(self, external_actions: Dict[AnyStr, np.array]):
@@ -255,7 +325,7 @@ class BaseEngine(EngineCore, Randomizable):
     def dump_episode(self, pkl_file_name=None) -> None:
         """Dump the data of an episode."""
         assert self.record_manager is not None
-        episode_state = self.record_manager.dump_episode()
+        episode_state = self.record_manager.get_episode_metadata()
         if pkl_file_name is not None:
             with open(pkl_file_name, "wb+") as file:
                 pickle.dump(episode_state, file)
@@ -266,25 +336,32 @@ class BaseEngine(EngineCore, Randomizable):
         Note:
         Instead of calling this func directly, close Engine by using engine_utils.close_engine
         """
-        # clear all objects in spawned_object
-        for id, obj in self._spawned_objects.items():
-            if id in self._object_policies:
-                self._object_policies.pop(id).destroy()
-            if id in self._object_tasks:
-                self._object_tasks.pop(id).destroy()
-        for cls, pending_obj in self._dying_objects.items():
-            for obj in pending_obj:
-                obj.destroy()
-        if self.main_camera is not None:
-            self.main_camera.destroy()
         if len(self._managers) > 0:
             for name, manager in self._managers.items():
                 setattr(self, name, None)
                 if manager is not None:
                     manager.destroy()
+        # clear all objects in spawned_object
+        # self.clear_objects([id for id in self._spawned_objects.keys()])
+        for id, obj in self._spawned_objects.items():
+            if id in self._object_policies:
+                self._object_policies.pop(id).destroy()
+            if id in self._object_tasks:
+                self._object_tasks.pop(id).destroy()
+            obj.destroy()
+        for cls, pending_obj in self._dying_objects.items():
+            for obj in pending_obj:
+                obj.destroy()
+        if self.main_camera is not None:
+            self.main_camera.destroy()
         self.interface.destroy()
         self.clear_world()
         self.close_world()
+
+        if self._top_down_renderer is not None:
+            self._top_down_renderer.close()
+            del self._top_down_renderer
+            self._top_down_renderer = None
 
     def __del__(self):
         logging.debug("{} is destroyed".format(self.__class__.__name__))
@@ -319,12 +396,17 @@ class BaseEngine(EngineCore, Randomizable):
         if self.replay_episode:
             return self.replay_manager.current_map
         else:
-            return self.map_manager.current_map
+            if hasattr(self, "map_manager"):
+                return self.map_manager.current_map
+            else:
+                return None
 
     @property
     def current_track_vehicle(self):
         if self.main_camera is not None:
             return self.main_camera.current_track_vehicle
+        elif "default_agent" in self.agents:
+            return self.agents["default_agent"]
         else:
             return None
 
@@ -364,7 +446,7 @@ class BaseEngine(EngineCore, Randomizable):
                 objs_need_to_release) == 0, "You should clear all generated objects by using engine.clear_objects " \
                                             "in each manager.before_step()"
 
-    def update_manager(self, manager_name: str, manager: BaseManager):
+    def update_manager(self, manager_name: str, manager: BaseManager, destroy_previous_manager=True):
         """
         Update an existing manager with a new one
         :param manager_name: existing manager name
@@ -374,7 +456,8 @@ class BaseEngine(EngineCore, Randomizable):
             manager_name
         )
         existing_manager = self._managers.pop(manager_name)
-        existing_manager.destroy()
+        if destroy_previous_manager:
+            existing_manager.destroy()
         self._managers[manager_name] = manager
         setattr(self, manager_name, manager)
         self._managers = OrderedDict(sorted(self._managers.items(), key=lambda k_v: k_v[-1].PRIORITY))
@@ -382,10 +465,11 @@ class BaseEngine(EngineCore, Randomizable):
     @property
     def managers(self):
         # whether to froze other managers
-        return self._managers if not self.replay_episode else {"replay_manager": self.replay_manager}
+        return {"replay_manager": self.replay_manager} if self.replay_episode and not \
+            self.only_reset_when_replay else self._managers
 
     def change_object_name(self, obj, new_name):
-        raise DeprecationWarning("This function is too dangerous to use")
+        raise DeprecationWarning("This function is too dangerous to be used")
         """
         Change the name of one object, Note: it may bring some bugs if abusing
         """
@@ -403,3 +487,9 @@ class BaseEngine(EngineCore, Randomizable):
             return self.replay_manager.current_frame.agent_to_object(agent_name)
         else:
             return self.agent_manager.agent_to_object(agent_name)
+
+    def render_topdown(self, text, *args, **kwargs):
+        if self._top_down_renderer is None:
+            from metadrive.obs.top_down_renderer import TopDownRenderer
+            self._top_down_renderer = TopDownRenderer(*args, **kwargs)
+        return self._top_down_renderer.render(text, *args, **kwargs)

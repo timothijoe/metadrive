@@ -1,14 +1,18 @@
+import copy
 from collections import deque, namedtuple
 from typing import Optional, Union, Iterable
 
-import cv2
 import numpy as np
 
+from metadrive.component.map.waymo_map import WaymoMap
 from metadrive.constants import Decoration, TARGET_VEHICLES
+from metadrive.constants import WaymoLaneProperty
 from metadrive.engine.engine_utils import get_engine
 from metadrive.obs.top_down_obs_impl import WorldSurface, VehicleGraphics, LaneGraphics
+from metadrive.utils.interpolating_line import InterpolatingLine
 from metadrive.utils.map_utils import is_map_related_instance
 from metadrive.utils.utils import import_pygame
+from metadrive.utils.waymo_utils.waymo_utils import convert_polyline_to_metadrive
 
 pygame = import_pygame()
 
@@ -25,6 +29,7 @@ def draw_top_down_map(
     reverse_color=False,
     road_color=color_white
 ) -> Optional[Union[np.ndarray, pygame.Surface]]:
+    import cv2
     film_size = film_size or map.film_size
     surface = WorldSurface(film_size, 0, pygame.Surface(film_size))
     if reverse_color:
@@ -39,16 +44,25 @@ def draw_top_down_map(
     surface.scaling = scaling
     centering_pos = ((b_box[0] + b_box[1]) / 2, (b_box[2] + b_box[3]) / 2)
     surface.move_display_window_to(centering_pos)
-    for _from in map.road_network.graph.keys():
-        decoration = True if _from == Decoration.start else False
-        for _to in map.road_network.graph[_from].keys():
-            for l in map.road_network.graph[_from][_to]:
-                if simple_draw:
-                    LaneGraphics.simple_draw(l, surface, color=road_color)
-                else:
-                    two_side = True if l is map.road_network.graph[_from][_to][-1] or decoration else False
-                    LaneGraphics.display(l, surface, two_side, color=road_color)
 
+    if isinstance(map, WaymoMap):
+        assert not simple_draw, "Simple Draw does not support now"
+        for data in map.blocks[-1].waymo_map_data.values():
+            if WaymoLaneProperty.POLYLINE not in data:
+                continue
+            type = data.get("type", None)
+            waymo_line = InterpolatingLine(convert_polyline_to_metadrive(data[WaymoLaneProperty.POLYLINE]))
+            LaneGraphics.display_waymo(waymo_line, type, surface)
+    else:
+        for _from in map.road_network.graph.keys():
+            decoration = True if _from == Decoration.start else False
+            for _to in map.road_network.graph[_from].keys():
+                for l in map.road_network.graph[_from][_to]:
+                    if simple_draw:
+                        LaneGraphics.simple_draw(l, surface, color=road_color)
+                    else:
+                        two_side = True if l is map.road_network.graph[_from][_to][-1] or decoration else False
+                        LaneGraphics.display(l, surface, two_side, use_line_color=True)
     if return_surface:
         return surface
     ret = cv2.resize(pygame.surfarray.pixels_red(surface), resolution, interpolation=cv2.INTER_LINEAR)
@@ -116,23 +130,26 @@ def draw_top_down_trajectory(
 class TopDownRenderer:
     def __init__(
         self,
-        film_size=None,
-        screen_size=None,
+        film_size=(1000, 1000),
+        screen_size=(1000, 1000),
         light_background=True,
         num_stack=15,
         history_smooth=0,
-        road_color=(255, 255, 255),
+        road_color=(80, 80, 80),
         show_agent_name=False,
-        track_target_vehicle=True,
+        camera_position=None,
+        track_target_vehicle=False,
+        **kwargs
         # current_track_vehicle=None
     ):
         # Setup some useful flags
+        self.position = camera_position
         self.track_target_vehicle = track_target_vehicle
         self.show_agent_name = show_agent_name
         if self.show_agent_name:
             pygame.init()
         self.engine = get_engine()
-        self._screen_size = screen_size
+        # self._screen_size = screen_size
         self.pygame_font = None
         self.map = self.engine.current_map
         self.stack_frames = deque(maxlen=num_stack)
@@ -143,9 +160,11 @@ class TopDownRenderer:
             assert self.current_track_vehicle is not None, "Specify which vehicle to track"
         self.road_color = road_color
         self._light_background = light_background
+        self._text_render_pos = [50, 50]
+        self._font_size = 25
+        self._text_render_interval = 20
 
         # Setup the canvas
-        film_size = film_size or (3000, 3000)
         # (1) background is the underlying layer. It is fixed and will never change unless the map changes.
         self._background_canvas = draw_top_down_map(
             self.map, simple_draw=False, return_surface=True, film_size=film_size, road_color=road_color
@@ -160,7 +179,7 @@ class TopDownRenderer:
         # self._runtime_output = self._background_canvas.copy()  # TODO(pzh) what is this?
 
         # Setup some runtime variables
-        self._render_size = (1000, 1000)
+        self._render_size = screen_size
         self._background_size = tuple(self._background_canvas.get_size())
         # screen_size = self._screen_size or self._render_size
         # self._blit_size = (int(screen_size[0] * self._zoomin), int(screen_size[1] * self._zoomin))
@@ -180,6 +199,10 @@ class TopDownRenderer:
 
         # Draw
         self.blit()
+        self.kwargs = kwargs
+
+        # key accept
+        self.need_reset = False
 
     @property
     def canvas(self):
@@ -187,9 +210,14 @@ class TopDownRenderer:
 
     def refresh(self):
         self._runtime_canvas.blit(self._background_canvas, (0, 0))
-        self._render_canvas.fill((255, 255, 255))
+        self.canvas.fill(color_white)
 
-    def render(self, *args, **kwargs):
+    def render(self, text, *args, **kwargs):
+        self.need_reset = False
+        key_press = pygame.key.get_pressed()
+        if key_press[pygame.K_r]:
+            self.need_reset = True
+
         # Record current target vehicle
         objects = self.engine.get_objects(lambda obj: not is_map_related_instance(obj))
         this_frame_objects = self._append_frame_objects(objects)
@@ -197,11 +225,28 @@ class TopDownRenderer:
 
         self._handle_event()
         self.refresh()
-        self._draw()
+        self._draw(*args, **kwargs)
+        self._add_text(text)
         self.blit()
-        ret = self._render_canvas.copy()
+        ret = self.canvas.copy()
         ret = ret.convert(24)
         return ret
+
+    def _add_text(self, text: dict):
+        if not text:
+            return
+        if not pygame.get_init():
+            pygame.init()
+        font2 = pygame.font.SysFont('didot.ttc', 25)
+        # pygame do not support multiline text render
+        count = 0
+        for key, value in text.items():
+            line = str(key) + ":" + str(value)
+            img2 = font2.render(line, True, (0, 0, 0))
+            this_line_pos = copy.copy(self._text_render_pos)
+            this_line_pos[-1] += count * self._text_render_interval
+            self._render_canvas.blit(img2, this_line_pos)
+            count += 1
 
     def blit(self):
         # self._render_canvas.blit(self._runtime_canvas, (0, 0))
@@ -231,8 +276,7 @@ class TopDownRenderer:
 
     @property
     def current_track_vehicle(self):
-        # TODO(pzh) make this function more beautiful
-        return self.engine.agent_manager.active_agents["default_agent"]
+        return self.engine.current_track_vehicle
 
     def _append_frame_objects(self, objects):
         frame_objects = []
@@ -250,7 +294,7 @@ class TopDownRenderer:
             )
         return frame_objects
 
-    def _draw(self):
+    def _draw(self, *args, **kwargs):
         """
         This is the core function to process the
         """
@@ -313,18 +357,28 @@ class TopDownRenderer:
                 )
                 self._deads.append(v)
 
-        if self.track_target_vehicle:
-            v = self.current_track_vehicle
-            canvas = self._runtime_canvas
-            field = self.canvas.get_width()
-            position = self._runtime_canvas.pos2pix(*v.position)
-            off = (position[0] - field / 2, position[1] - field / 2)
-            self.canvas.blit(source=canvas, dest=(0, 0), area=(off[0], off[1], field, field))
+        v = self.current_track_vehicle
+        canvas = self._runtime_canvas
+        field = self._render_canvas.get_size()
+        if self.position is not None or self.track_target_vehicle:
+            cam_pos = v.position if self.track_target_vehicle else self.position
+            position = self._runtime_canvas.pos2pix(*cam_pos)
         else:
-            raise ValueError()
-            # FIXME check this later
-            self.canvas.blit(self._runtime_canvas, (0, 0))
-            off = (0, 0)
+            position = (field[0] / 2, field[1] / 2)
+        off = (position[0] - field[0] / 2, position[1] - field[1] / 2)
+        self.canvas.blit(source=canvas, dest=(0, 0), area=(off[0], off[1], field[0], field[1]))
+
+        if "traffic_light_msg" in kwargs:
+            if kwargs["traffic_light_msg"] < 0.5:
+                traffic_light_color = (0, 255, 0)
+            else:
+                traffic_light_color = (255, 0, 0)
+            pygame.draw.circle(
+                surface=self.canvas,
+                color=traffic_light_color,
+                center=(self.canvas.get_size()[0] * 0.1, self.canvas.get_size()[1] * 0.1),
+                radius=20
+            )
 
         if self.show_agent_name:
             raise ValueError()

@@ -14,6 +14,8 @@ class TollGateBuilding(BaseBuilding):
             self.BUILDING_LENGTH, lane.width, self.BUILDING_HEIGHT / 2, object_id=self.id
         )
         self.add_body(air_wall)
+        self._node_path_list.append(air_wall)
+
         self.set_position(position, 0)
         self.set_heading_theta(heading_theta)
 
@@ -23,3 +25,11 @@ class TollGateBuilding(BaseBuilding):
             building_model.setH(90)
             building_model.reparentTo(self.origin)
             gate_model.reparentTo(self.origin)
+
+    @property
+    def top_down_length(self):
+        return self.BUILDING_LENGTH
+
+    @property
+    def top_down_width(self):
+        return 3

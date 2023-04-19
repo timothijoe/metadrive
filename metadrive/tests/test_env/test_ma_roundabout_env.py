@@ -139,7 +139,8 @@ def test_ma_roundabout_horizon():
                         assert i[kkk][TerminationState.OUT_OF_ROAD]
 
                 for kkk, iii in i.items():
-                    if iii and (iii[TerminationState.OUT_OF_ROAD] or iii["cost"] == 778):
+                    if (TerminationState.OUT_OF_ROAD in iii and iii[TerminationState.OUT_OF_ROAD]) or \
+                            ("cost" in iii and iii["cost"] == 778):
                         assert d[kkk]
                         assert i[kkk]["cost"] == 778
                         assert i[kkk][TerminationState.OUT_OF_ROAD]
@@ -207,9 +208,9 @@ def test_ma_roundabout_reset():
                         v.navigation.get_current_lane_width() / 2 >= lat >=
                         (0.5 - v.navigation.get_current_lane_num()) * v.navigation.get_current_lane_width()
                     )
-                    if not v.arrive_destination:
+                    if not env._is_arrive_destination(v):
                         print('sss')
-                    assert v.arrive_destination
+                    assert env._is_arrive_destination(v)
 
                 act = {k: [0, 0] for k in env.vehicles.keys()}
                 o, r, d, i = _act(env, act)
@@ -218,7 +219,7 @@ def test_ma_roundabout_reset():
                     assert len(v.navigation.checkpoints) > 2
 
                 for kkk, iii in i.items():
-                    if iii and iii[TerminationState.SUCCESS]:
+                    if TerminationState.SUCCESS in iii and iii[TerminationState.SUCCESS]:
                         # print("{} success!".format(kkk))
                         success_count += 1
 

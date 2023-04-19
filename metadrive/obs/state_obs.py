@@ -84,22 +84,25 @@ class StateObservation(ObservationBase):
             lateral_to_right /= total_width
             info += [clip(lateral_to_left, 0.0, 1.0), clip(lateral_to_right, 0.0, 1.0)]
 
-        current_reference_lane = vehicle.navigation.current_ref_lanes[-1]
-        info += [
+        if vehicle.navigation is None or vehicle.navigation.current_ref_lanes is None:
+            info += [0] * 5
+        else:
+            current_reference_lane = vehicle.navigation.current_ref_lanes[-1]
+            info += [
 
-            # The angular difference between vehicle's heading and the lane heading at this location.
-            vehicle.heading_diff(current_reference_lane),
+                # The angular difference between vehicle's heading and the lane heading at this location.
+                vehicle.heading_diff(current_reference_lane),
 
-            # The velocity of target vehicle
-            clip((vehicle.speed + 1) / (vehicle.max_speed + 1), 0.0, 1.0),
+                # The velocity of target vehicle
+                clip((vehicle.speed + 1) / (vehicle.max_speed + 1), 0.0, 1.0),
 
-            # Current steering
-            clip((vehicle.steering / vehicle.MAX_STEERING + 1) / 2, 0.0, 1.0),
+                # Current steering
+                clip((vehicle.steering / vehicle.MAX_STEERING + 1) / 2, 0.0, 1.0),
 
-            # The normalized actions at last steps
-            clip((vehicle.last_current_action[0][0] + 1) / 2, 0.0, 1.0),
-            clip((vehicle.last_current_action[0][1] + 1) / 2, 0.0, 1.0)
-        ]
+                # The normalized actions at last steps
+                clip((vehicle.last_current_action[0][0] + 1) / 2, 0.0, 1.0),
+                clip((vehicle.last_current_action[0][1] + 1) / 2, 0.0, 1.0)
+            ]
 
         # Current angular acceleration (yaw rate)
         heading_dir_last = vehicle.last_heading_dir
@@ -146,7 +149,10 @@ class LidarStateObservation(ObservationBase):
         shape = list(self.state_obs.observation_space.shape)
         if self.config["lidar"]["num_lasers"] > 0 and self.config["lidar"]["distance"] > 0:
             # Number of lidar rays and distance should be positive!
-            shape[0] += self.config["lidar"]["num_lasers"] + self.config["lidar"]["num_others"] * 4
+            lidar_dim = self.config["lidar"]["num_lasers"] + self.config["lidar"]["num_others"] * 4
+            if self.config["lidar"]["add_others_navi"]:
+                lidar_dim += self.config["lidar"]["num_others"] * 4
+            shape[0] += lidar_dim
         return gym.spaces.Box(-0.0, 1.0, shape=tuple(shape), dtype=np.float32)
 
     def observe(self, vehicle):
@@ -180,7 +186,8 @@ class LidarStateObservation(ObservationBase):
             cloud_points, detected_objects = vehicle.lidar.perceive(vehicle, )
             if self.config["lidar"]["num_others"] > 0:
                 other_v_info += vehicle.lidar.get_surrounding_vehicles_info(
-                    vehicle, detected_objects, self.config["lidar"]["num_others"]
+                    vehicle, detected_objects, self.config["lidar"]["num_others"],
+                    self.config["lidar"]["add_others_navi"]
                 )
             other_v_info += self._add_noise_to_cloud_points(
                 cloud_points,

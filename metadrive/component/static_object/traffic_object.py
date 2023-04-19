@@ -23,7 +23,7 @@ class TrafficObject(BaseStaticObject):
 
     def __init__(self, lane, longitude: float, lateral: float, random_seed):
         """
-       :param lane: the lane to spawn object
+        :param lane: the lane to spawn object
         :param longitude: use to calculate cartesian position of object in the surface
         :param lateral: use to calculate the angle from positive direction of horizontal axis
         """
@@ -43,7 +43,11 @@ class TrafficCone(TrafficObject):
 
     def __init__(self, lane, longitude: float, lateral: float, static: bool = False, random_seed=None):
         super(TrafficCone, self).__init__(lane, longitude, lateral, random_seed)
-        self.add_body(BaseRigidBodyNode(self.name, self.NAME))
+
+        n = BaseRigidBodyNode(self.name, self.NAME)
+        self.add_body(n)
+        self._node_path_list.append(n)
+
         self.body.addShape(BulletCylinderShape(self.RADIUS, self.HEIGHT))
         self.body.setIntoCollideMask(self.COLLISION_GROUP)
         self.set_static(static)
@@ -55,15 +59,15 @@ class TrafficCone(TrafficObject):
 
     @property
     def top_down_length(self):
-        return self.RADIUS * 2
+        return self.RADIUS * 4
 
     @property
     def top_down_width(self):
-        return self.RADIUS * 2
+        return self.RADIUS * 4
 
     @property
     def top_down_color(self):
-        return 100, 100, 100
+        return 235, 84, 42
 
 
 class TrafficWarning(TrafficObject):
@@ -75,7 +79,11 @@ class TrafficWarning(TrafficObject):
 
     def __init__(self, lane, longitude: float, lateral: float, static: bool = False, random_seed=None):
         super(TrafficWarning, self).__init__(lane, longitude, lateral, random_seed)
-        self.add_body(BaseRigidBodyNode(self.name, self.NAME))
+
+        n = BaseRigidBodyNode(self.name, self.NAME)
+        self.add_body(n)
+        self._node_path_list.append(n)
+
         self.body.addShape(BulletCylinderShape(self.RADIUS, self.HEIGHT))
         self.body.setIntoCollideMask(self.COLLISION_GROUP)
         self.set_static(static)
@@ -88,11 +96,11 @@ class TrafficWarning(TrafficObject):
 
     @property
     def top_down_length(self):
-        return self.RADIUS
+        return self.RADIUS * 2
 
     @property
     def top_down_width(self):
-        return self.RADIUS
+        return self.RADIUS * 2
 
 
 class TrafficBarrier(TrafficObject):
@@ -105,14 +113,29 @@ class TrafficBarrier(TrafficObject):
 
     def __init__(self, lane, longitude: float, lateral: float, static: bool = False, random_seed=None):
         super(TrafficBarrier, self).__init__(lane, longitude, lateral, random_seed)
-        self.add_body(BaseRigidBodyNode(self.name, self.NAME))
-        self.body.addShape(BulletBoxShape((self.WIDTH / 2, self.LENGTH / 2, self.HEIGHT / 2)))
+        n = BaseRigidBodyNode(self.name, self.NAME)
+        self.add_body(n)
+        self._node_path_list.append(n)
+
+        self.body.addShape(BulletBoxShape((self.width / 2, self.length / 2, self.height / 2)))
         self.body.setIntoCollideMask(self.COLLISION_GROUP)
         self.set_static(static)
         if self.render:
             model = self.loader.loadModel(AssetLoader.file_path("models", "barrier", "scene.gltf"))
             model.setH(-90)
             model.reparentTo(self.origin)
+
+    @property
+    def width(self):
+        return self.WIDTH
+
+    @property
+    def length(self):
+        return self.LENGTH
+
+    @property
+    def height(self):
+        return self.HEIGHT
 
     @property
     def top_down_length(self):

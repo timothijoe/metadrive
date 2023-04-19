@@ -2,10 +2,9 @@ import copy
 import logging
 from typing import List, Tuple, Dict
 
-import numpy as np
 from metadrive.component.lane.abs_lane import AbstractLane
-from metadrive.component.road_network.road import Road
 from metadrive.component.road_network.base_road_network import BaseRoadNetwork
+from metadrive.component.road_network.road import Road
 from metadrive.constants import Decoration
 from metadrive.utils.math_utils import get_boxes_bounding_box
 from metadrive.utils.scene_utils import get_lanes_bounding_box
@@ -46,7 +45,11 @@ class NodeRoadNetwork(BaseRoadNetwork):
             raise ValueError("Same start node {} in two road network".format(intersect))
         # handle decoration_lanes
         dec_lanes = self.get_all_decoration_lanes() + other.get_all_decoration_lanes()
+
+        # PZH: Note, do not use deepcopy here! We wish to maintain the reference to Lane!
+        # self.graph.update(copy.deepcopy(other.graph))
         self.graph.update(copy.copy(other.graph))
+
         self.update_decoration_lanes(dec_lanes)
         return self
 

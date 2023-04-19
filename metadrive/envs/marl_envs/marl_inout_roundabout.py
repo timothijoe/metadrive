@@ -1,18 +1,13 @@
 import copy
 
-import gym
-import numpy as np
-
 from metadrive.component.map.pg_map import PGMap
 from metadrive.component.pgblock.first_block import FirstPGBlock
 from metadrive.component.pgblock.roundabout import Roundabout
 from metadrive.component.road_network import Road
 from metadrive.envs.marl_envs.multi_agent_metadrive import MultiAgentMetaDrive
-from metadrive.manager.map_manager import MapManager
+from metadrive.manager.map_manager import PGMapManager
 from metadrive.manager.spawn_manager import SpawnManager
-from metadrive.obs.observation_base import ObservationBase
-from metadrive.obs.state_obs import StateObservation
-from metadrive.utils import norm, Config
+from metadrive.utils import Config
 
 MARoundaboutConfig = dict(
     spawn_roads=[
@@ -25,7 +20,7 @@ MARoundaboutConfig = dict(
     top_down_camera_initial_x=95,
     top_down_camera_initial_y=15,
     top_down_camera_initial_z=120,
-    num_agents=20,
+    num_agents=40,
 )
 
 
@@ -65,7 +60,7 @@ class MARoundaboutMap(PGMap):
         self.blocks.append(last_block)
 
 
-class MARoundaboutMapManager(MapManager):
+class MARoundaboutPGMapManager(PGMapManager):
     def reset(self):
         config = self.engine.global_config
         if len(self.spawned_objects) == 0:
@@ -77,64 +72,67 @@ class MARoundaboutMapManager(MapManager):
         self.current_map.spawn_roads = config["spawn_roads"]
 
 
-class LidarStateObservationMARound(ObservationBase):
-    def __init__(self, vehicle_config):
-        self.state_obs = StateObservation(vehicle_config)
-        super(LidarStateObservationMARound, self).__init__(vehicle_config)
-        self.state_length = list(self.state_obs.observation_space.shape)[0]
-        self.cloud_points = None
-        self.detected_objects = None
-
-    @property
-    def observation_space(self):
-        shape = list(self.state_obs.observation_space.shape)
-        if self.config["lidar"]["num_lasers"] > 0 and self.config["lidar"]["distance"] > 0:
-            # Number of lidar rays and distance should be positive!
-            shape[0] += self.config["lidar"]["num_lasers"] + self.config["lidar"]["num_others"] * self.state_length
-        return gym.spaces.Box(-0.0, 1.0, shape=tuple(shape), dtype=np.float32)
-
-    def observe(self, vehicle):
-        num_others = self.config["lidar"]["num_others"]
-        state = self.state_observe(vehicle)
-        other_v_info = []
-        if vehicle.lidar.available:
-            cloud_points, detected_objects = vehicle.lidar.perceive(vehicle)
-            if self.config["lidar"]["num_others"] > 0:
-                surrounding_vehicles = list(vehicle.lidar.get_surrounding_vehicles(detected_objects))
-                surrounding_vehicles.sort(
-                    key=lambda v: norm(vehicle.position[0] - v.position[0], vehicle.position[1] - v.position[1])
-                )
-                surrounding_vehicles += [None] * num_others
-                for tmp_v in surrounding_vehicles[:num_others]:
-                    if tmp_v is not None:
-                        tmp_v = tmp_v
-                        other_v_info += self.state_observe(tmp_v).tolist()
-                    else:
-                        other_v_info += [0] * self.state_length
-            other_v_info += self._add_noise_to_cloud_points(
-                cloud_points,
-                gaussian_noise=self.config["lidar"]["gaussian_noise"],
-                dropout_prob=self.config["lidar"]["dropout_prob"]
-            )
-            self.cloud_points = cloud_points
-            self.detected_objects = detected_objects
-        self.current_observation = np.concatenate((state, np.asarray(other_v_info)))
-        return self.current_observation.astype(np.float32)
-
-    def state_observe(self, vehicle):
-        return self.state_obs.observe(vehicle)
-
-    def _add_noise_to_cloud_points(self, points, gaussian_noise, dropout_prob):
-        if gaussian_noise > 0.0:
-            points = np.asarray(points)
-            points = np.clip(points + np.random.normal(loc=0.0, scale=gaussian_noise, size=points.shape), 0.0, 1.0)
-
-        if dropout_prob > 0.0:
-            assert dropout_prob <= 1.0
-            points = np.asarray(points)
-            points[np.random.uniform(0, 1, size=points.shape) < dropout_prob] = 0.0
-
-        return list(points)
+# Note: This class allow one agent accessing its neighbors' observation.
+# But we never use this functionality in formal experiment. Therefore we just deprecate it for
+# clarity!
+# class LidarStateObservationMARound(ObservationBase):
+#     def __init__(self, vehicle_config):
+#         self.state_obs = StateObservation(vehicle_config)
+#         super(LidarStateObservationMARound, self).__init__(vehicle_config)
+#         self.state_length = list(self.state_obs.observation_space.shape)[0]
+#         self.cloud_points = None
+#         self.detected_objects = None
+#
+#     @property
+#     def observation_space(self):
+#         shape = list(self.state_obs.observation_space.shape)
+#         if self.config["lidar"]["num_lasers"] > 0 and self.config["lidar"]["distance"] > 0:
+#             # Number of lidar rays and distance should be positive!
+#             shape[0] += self.config["lidar"]["num_lasers"] + self.config["lidar"]["num_others"] * self.state_length
+#         return gym.spaces.Box(-0.0, 1.0, shape=tuple(shape), dtype=np.float32)
+#
+#     def observe(self, vehicle):
+#         num_others = self.config["lidar"]["num_others"]
+#         state = self.state_observe(vehicle)
+#         other_v_info = []
+#         if vehicle.lidar.available:
+#             cloud_points, detected_objects = vehicle.lidar.perceive(vehicle)
+#             if self.config["lidar"]["num_others"] > 0:
+#                 surrounding_vehicles = list(vehicle.lidar.get_surrounding_vehicles(detected_objects))
+#                 surrounding_vehicles.sort(
+#                     key=lambda v: norm(vehicle.position[0] - v.position[0], vehicle.position[1] - v.position[1])
+#                 )
+#                 surrounding_vehicles += [None] * num_others
+#                 for tmp_v in surrounding_vehicles[:num_others]:
+#                     if tmp_v is not None:
+#                         tmp_v = tmp_v
+#                         other_v_info += self.state_observe(tmp_v).tolist()
+#                     else:
+#                         other_v_info += [0] * self.state_length
+#             other_v_info += self._add_noise_to_cloud_points(
+#                 cloud_points,
+#                 gaussian_noise=self.config["lidar"]["gaussian_noise"],
+#                 dropout_prob=self.config["lidar"]["dropout_prob"]
+#             )
+#             self.cloud_points = cloud_points
+#             self.detected_objects = detected_objects
+#         self.current_observation = np.concatenate((state, np.asarray(other_v_info)))
+#         return self.current_observation.astype(np.float32)
+#
+#     def state_observe(self, vehicle):
+#         return self.state_obs.observe(vehicle)
+#
+#     def _add_noise_to_cloud_points(self, points, gaussian_noise, dropout_prob):
+#         if gaussian_noise > 0.0:
+#             points = np.asarray(points)
+#             points = np.clip(points + np.random.normal(loc=0.0, scale=gaussian_noise, size=points.shape), 0.0, 1.0)
+#
+#         if dropout_prob > 0.0:
+#             assert dropout_prob <= 1.0
+#             points = np.asarray(points)
+#             points[np.random.uniform(0, 1, size=points.shape) < dropout_prob] = 0.0
+#
+#         return list(points)
 
 
 class RoundaboutSpawnManager(SpawnManager):
@@ -150,13 +148,10 @@ class MultiAgentRoundaboutEnv(MultiAgentMetaDrive):
     def default_config() -> Config:
         return MultiAgentMetaDrive.default_config().update(MARoundaboutConfig, allow_add_new_key=True)
 
-    def get_single_observation(self, vehicle_config: "Config") -> "ObservationBase":
-        return LidarStateObservationMARound(vehicle_config)
-
     def setup_engine(self):
         super(MultiAgentRoundaboutEnv, self).setup_engine()
         self.engine.update_manager("spawn_manager", RoundaboutSpawnManager())
-        self.engine.update_manager("map_manager", MARoundaboutMapManager())
+        self.engine.update_manager("map_manager", MARoundaboutPGMapManager())
 
 
 def _draw():

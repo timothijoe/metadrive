@@ -1,16 +1,18 @@
-from enum import Enum
 import sys
-from tqdm import tqdm
+from enum import Enum
+
 import matplotlib.pyplot as plt
 from matplotlib.pyplot import figure
-
-from metadrive.engine.asset_loader import AssetLoader
+from tqdm import tqdm
 
 try:
     import tensorflow as tf
 except ImportError:
     pass
-from metadrive.utils.waymo_utils.protos import scenario_pb2
+try:
+    from metadrive.utils.waymo_utils.protos import scenario_pb2
+except ImportError:
+    pass
 import os
 import pickle
 import numpy as np
@@ -249,7 +251,9 @@ class CustomUnpickler(pickle.Unpickler):
 
 
 def read_waymo_data(file_path):
-    data = CustomUnpickler(open(file_path, "rb+")).load()
+    with open(file_path, "rb") as f:
+        unpickler = CustomUnpickler(f)
+        data = unpickler.load()
     new_track = {}
     for key, value in data["tracks"].items():
         new_track[str(key)] = value

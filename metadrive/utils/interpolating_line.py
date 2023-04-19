@@ -1,5 +1,4 @@
 import math
-
 import numpy as np
 
 from metadrive.utils.math_utils import norm
@@ -13,10 +12,46 @@ class InterpolatingLine:
         self.segment_property = self._get_properties(points)
         self.length = sum([seg["length"] for seg in self.segment_property])
 
+    def position(self, longitudinal: float, lateral: float) -> np.ndarray:
+        return self.get_point(longitudinal, lateral)
+
+    def local_coordinates(self, position, only_in_lane_point=False):
+        ret = []  # ret_longitude, ret_lateral, sort_key
+        exclude_ret = []
+        accumulate_len = 0
+        for seg in self.segment_property:
+            delta_x = position[0] - seg["start_point"][0]
+            delta_y = position[1] - seg["start_point"][1]
+            longitudinal = delta_x * seg["direction"][0] + delta_y * seg["direction"][1]
+            lateral = delta_x * seg["lateral_direction"][0] + delta_y * seg["lateral_direction"][1]
+            if not only_in_lane_point:
+                ret.append([accumulate_len + longitudinal, lateral])
+            else:
+                if abs(lateral) <= self.width / 2 and -1. <= accumulate_len + longitudinal <= self.length + 1:
+                    ret.append([accumulate_len + longitudinal, lateral])
+                else:
+                    exclude_ret.append([accumulate_len + longitudinal, lateral])
+            accumulate_len += seg["length"]
+        if len(ret) == 0:
+            # for corner case
+            ret = exclude_ret
+        ret.sort(key=lambda seg: abs(seg[-1]))
+        return ret[0][0], ret[0][1]
+
     def _get_properties(self, points):
         ret = []
-        for idx, p_start in enumerate(points[:-1]):
-            p_end = points[idx + 1]
+        p_start_idx = 0
+        while p_start_idx < len(points) - 1:
+            for p_end_idx in range(p_start_idx + 1, len(points)):
+                if np.linalg.norm(points[p_start_idx] - points[p_end_idx]) > 1:
+                    break
+            p_start = points[p_start_idx]
+            p_end = points[p_end_idx]
+
+            if np.linalg.norm(p_start - p_end) < 1e-6:
+                p_start_idx = p_end_idx  # next
+                continue
+
             seg_property = {
                 "length": self.points_distance(p_start, p_end),
                 "direction": self.points_direction(p_start, p_end),
@@ -26,6 +61,7 @@ class InterpolatingLine:
                 "end_point": p_end
             }
             ret.append(seg_property)
+            p_start_idx = p_end_idx  # next
         return ret
 
     @staticmethod
@@ -65,6 +101,9 @@ class InterpolatingLine:
         In rad
         """
         accumulate_len = 0
+
+        assert len(self.segment_property) > 0
+
         for seg in self.segment_property:
             accumulate_len += seg["length"]
             if accumulate_len > longitudinal:
@@ -89,5 +128,6 @@ class InterpolatingLine:
         return lateral
 
     def destroy(self):
-        self.segment_property = None
+        del self.segment_property
+        self.segment_property = []
         self.length = None

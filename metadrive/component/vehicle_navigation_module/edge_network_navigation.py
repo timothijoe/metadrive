@@ -19,10 +19,21 @@ class EdgeNetworkNavigation(BaseNavigation):
         show_navi_mark: bool = False,
         random_navi_mark_color=False,
         show_dest_mark=False,
-        show_line_to_dest=False
+        show_line_to_dest=False,
+        panda_color=None,
+        name=None,
+        vehicle_config=None
     ):
-        super(EdgeNetworkNavigation,
-              self).__init__(engine, show_navi_mark, random_navi_mark_color, show_dest_mark, show_line_to_dest)
+        super(EdgeNetworkNavigation, self).__init__(
+            engine=engine,
+            show_navi_mark=show_navi_mark,
+            random_navi_mark_color=random_navi_mark_color,
+            show_dest_mark=show_dest_mark,
+            show_line_to_dest=show_line_to_dest,
+            panda_color=panda_color,
+            name=name,
+            vehicle_config=vehicle_config
+        )
 
     def reset(self, map, current_lane, destination=None, random_seed=None):
         super(EdgeNetworkNavigation, self).reset(map, current_lane)
@@ -90,6 +101,8 @@ class EdgeNetworkNavigation(BaseNavigation):
             self.navi_arrow_dir = [lanes_heading1, lanes_heading2]
             dest_pos = self._dest_node_path.getPos()
             self._draw_line_to_dest(start_position=ego_vehicle.position, end_position=(dest_pos[0], -dest_pos[1]))
+            navi_pos = self._goal_node_path.getPos()
+            self._draw_line_to_navi(start_position=ego_vehicle.position, end_position=(navi_pos[0], -navi_pos[1]))
 
     def _update_target_checkpoints(self, ego_lane_index) -> bool:
         """
@@ -125,32 +138,33 @@ class EdgeNetworkNavigation(BaseNavigation):
         """
         Called in update_localization to find current lane information
         """
-        possible_lanes = ray_localization(
+        possible_lanes, on_lane = ray_localization(
             ego_vehicle.heading,
             ego_vehicle.position,
             ego_vehicle.engine,
             return_all_result=True,
-            use_heading_filter=False
+            use_heading_filter=False,
+            return_on_lane=True
         )
         for lane, index, l_1_dist in possible_lanes:
             if lane in self.current_ref_lanes:
-                return lane, index
+                return lane, index, on_lane
         nx_ckpt = self._target_checkpoints_index[-1]
         if nx_ckpt == self.checkpoints[-1] or self.next_ref_lanes is None:
-            return possible_lanes[0][:-1] if len(possible_lanes) > 0 else (None, None)
+            return (*possible_lanes[0][:-1], on_lane) if len(possible_lanes) > 0 else (None, None, on_lane)
 
         next_ref_lanes = self.next_ref_lanes
         for lane, index, l_1_dist in possible_lanes:
             if lane in next_ref_lanes:
-                return lane, index
-        return possible_lanes[0][:-1] if len(possible_lanes) > 0 else (None, None)
+                return lane, index, on_lane
+        return (*possible_lanes[0][:-1], on_lane) if len(possible_lanes) > 0 else (None, None, on_lane)
 
     def _get_info_for_checkpoint(self, lanes_id, ref_lane, ego_vehicle):
 
         navi_information = []
         # Project the checkpoint position into the target vehicle's coordination, where
         # +x is the heading and +y is the right hand side.
-        check_point = ref_lane.position(ref_lane.length, 0)
+        check_point = ref_lane.end
         dir_vec = check_point - ego_vehicle.position  # get the vector from center of vehicle to checkpoint
         dir_norm = norm(dir_vec[0], dir_vec[1])
         if dir_norm > self.NAVI_POINT_DIST:  # if the checkpoint is too far then crop the direction vector
@@ -195,3 +209,15 @@ class EdgeNetworkNavigation(BaseNavigation):
             clip((np.rad2deg(angle) / BlockParameterSpace.CURVE[Parameter.angle].max + 1) / 2, 0.0, 1.0)
         )
         return navi_information, lanes_heading, check_point
+
+    def _update_current_lane(self, ego_vehicle):
+        lane, lane_index, on_lane = self._get_current_lane(ego_vehicle)
+        ego_vehicle.on_lane = on_lane
+        if lane is None:
+            lane, lane_index = ego_vehicle.lane, ego_vehicle.lane_index
+            if self.FORCE_CALCULATE:
+                lane_index, _ = self.map.road_network.get_closest_lane_index(ego_vehicle.position)
+                lane = self.map.road_network.get_lane(lane_index)
+        self.current_lane = lane
+        assert lane_index == lane.index, "lane index mismatch!"
+        return lane, lane_index

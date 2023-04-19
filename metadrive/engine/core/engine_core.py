@@ -185,7 +185,7 @@ class EngineCore(ShowBase.ShowBase):
         # these element will not be removed when clear_world() is called
         self.pbr_render = self.render.attachNewNode("pbrNP")
 
-        # attach node to this root root whose children nodes will be clear after calling clear_world()
+        # attach node to this root whose children nodes will be clear after calling clear_world()
         self.worldNP = self.render.attachNewNode("world_np")
 
         # same as worldNP, but this node is only used for render gltf model with pbr material
@@ -203,10 +203,10 @@ class EngineCore(ShowBase.ShowBase):
         self.physics_world.dynamic_world.setContactAddedCallback(PythonCallbackObject(collision_callback))
 
         # for real time simulation
-        self.force_fps = ForceFPS(self, start=True)
+        self.force_fps = ForceFPS(self)
 
         # init terrain
-        self.terrain = Terrain()
+        self.terrain = Terrain(self.global_config["show_terrain"])
         self.terrain.attach_to_world(self.render, self.physics_world)
 
         # init other world elements
@@ -238,7 +238,7 @@ class EngineCore(ShowBase.ShowBase):
             lens = self.cam.node().getLens()
             lens.setFov(80)
 
-            self.sky_box = SkyBox()
+            self.sky_box = SkyBox(not self.global_config["show_skybox"])
             self.sky_box.attach_to_world(self.render, self.physics_world)
 
             self.world_light = Light(self.global_config)
@@ -294,6 +294,7 @@ class EngineCore(ShowBase.ShowBase):
         debugNP = self.render.attachNewNode(debugNode)
         self.physics_world.dynamic_world.setDebugNode(debugNP.node())
         self.debug_node = debugNP
+        # TODO: debugNP is not registered.
 
     def toggleAnalyze(self):
         self.worldNP.analyze()
@@ -363,6 +364,7 @@ class EngineCore(ShowBase.ShowBase):
         line_seg.drawTo(end_p[0] * self.w_scale, 0, end_p[1] * self.h_scale)
         line_seg.setThickness(thickness)
         line_np = self.aspect2d.attachNewNode(line_seg.create(False))
+        # TODO: line_np is not registered.
         return line_np
 
     def remove_logo(self, task):
@@ -381,7 +383,9 @@ class EngineCore(ShowBase.ShowBase):
         line_seg.moveTo(start_p)
         line_seg.drawTo(end_p)
         line_seg.setThickness(thickness)
-        NodePath(line_seg.create(False)).reparentTo(self.render)
+        np = NodePath(line_seg.create(False))
+        np.reparentTo(self.render)
+        # TODO(PZH): This NP is not removed.
 
 
 if __name__ == "__main__":

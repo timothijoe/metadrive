@@ -61,6 +61,9 @@ class Space:
         # By default, assume identity is JSONable
         return sample_n
 
+    def __del__(self):
+        del self.np_random
+
 
 class Dict(Space):
     """
@@ -107,7 +110,8 @@ class Dict(Space):
         super(Dict, self).__init__(None, None)  # None for shape and dtype, since it'll require special handling
 
     def seed(self, seed=None):
-        [space.seed(seed) for space in self.spaces.values()]
+        for space in self.spaces.values():
+            space.seed(seed)
 
     def sample(self):
         return OrderedDict([(k, space.sample()) for k, space in self.spaces.items()])
@@ -217,6 +221,15 @@ class Parameter:
 
 
 class VehicleParameterSpace:
+    STATIC_BASE_VEHICLE = dict(
+        wheel_friction=ConstantSpace(0.9),
+        max_engine_force=ConstantSpace(800),
+        max_brake_force=ConstantSpace(150),
+        max_steering=ConstantSpace(40),
+        max_speed=ConstantSpace(80),
+    )
+    STATIC_DEFAULT_VEHICLE = STATIC_BASE_VEHICLE
+
     BASE_VEHICLE = dict(
         wheel_friction=ConstantSpace(0.9),
         max_engine_force=BoxSpace(750, 850),
@@ -225,6 +238,7 @@ class VehicleParameterSpace:
         max_speed=ConstantSpace(80),
     )
     DEFAULT_VEHICLE = BASE_VEHICLE
+
     S_VEHICLE = dict(
         wheel_friction=ConstantSpace(0.9),
         max_engine_force=BoxSpace(350, 550),
@@ -261,6 +275,8 @@ class BlockParameterSpace:
     otherwise, an error may happen in navigation info normalization
     """
     STRAIGHT = {Parameter.length: BoxSpace(min=40.0, max=80.0)}
+    BIDIRECTION = {Parameter.length: BoxSpace(min=40.0, max=80.0)}
+
     CURVE = {
         Parameter.length: BoxSpace(min=40.0, max=80.0),
         Parameter.radius: BoxSpace(min=25.0, max=60.0),
@@ -294,7 +310,8 @@ class BlockParameterSpace:
     BOTTLENECK_PARAMETER = {
         Parameter.length: BoxSpace(min=20, max=50),  # the length of straigh part
         Parameter.lane_num: DiscreteSpace(min=1, max=2),  # the lane num increased or descreased now 1-2
-        "bottle_len": ConstantSpace(20)
+        "bottle_len": ConstantSpace(20),
+        "solid_center_line": ConstantSpace(0)  # bool, turn on yellow line or not
     }
     TOLLGATE_PARAMETER = {
         Parameter.length: ConstantSpace(20),  # the length of straigh part

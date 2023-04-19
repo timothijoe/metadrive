@@ -1,19 +1,23 @@
+import logging
+from typing import List, Dict
+
 import math
-from typing import Dict, List
+from panda3d.bullet import BulletBoxShape, BulletGhostNode
+from panda3d.core import Vec3, LQuaternionf, Vec4, TextureStage, RigidBodyCombiner, \
+    SamplerState, NodePath
 
 from metadrive.base_class.base_object import BaseObject
 from metadrive.component.lane.abs_lane import AbstractLane
 from metadrive.component.lane.waypoint_lane import WayPointLane
-from metadrive.component.road_network import Road
 from metadrive.component.road_network.node_road_network import NodeRoadNetwork
+from metadrive.component.road_network.road import Road
 from metadrive.constants import BodyName, CamMask, LineType, LineColor, DrivableAreaProperty
 from metadrive.engine.asset_loader import AssetLoader
 from metadrive.engine.core.physics_world import PhysicsWorld
 from metadrive.utils.coordinates_shift import panda_position
 from metadrive.utils.math_utils import norm
-from panda3d.bullet import BulletBoxShape, BulletGhostNode
-from panda3d.core import Vec3, LQuaternionf, Vec4, TextureStage, RigidBodyCombiner, \
-    SamplerState, NodePath
+
+logger = logging.getLogger(__name__)
 
 
 class BaseBlock(BaseObject, DrivableAreaProperty):
@@ -72,31 +76,43 @@ class BaseBlock(BaseObject, DrivableAreaProperty):
         root_render_np: NodePath,
         physics_world: PhysicsWorld,
         extra_config: Dict = None,
-        no_same_node=True
+        no_same_node=True,
+        attach_to_world=True
     ) -> bool:
         """
         Randomly Construct a block, if overlap return False
         """
         self.sample_parameters()
-        self.origin = NodePath(self.name)
+
+        if not isinstance(self.origin, NodePath):
+            self.origin = NodePath(self.name)
+        # else:
+        #     print("Origin already exists: ", self.origin)
+
         self._block_objects = []
         if extra_config:
             assert set(extra_config.keys()).issubset(self.PARAMETER_SPACE.parameters), \
                 "Make sure the parameters' name are as same as what defined in pg_space.py"
-            raw_config = self.get_config()
+            raw_config = self.get_config(copy=True)
             raw_config.update(extra_config)
             self.update_config(raw_config)
         self._clear_topology()
         success = self._sample_topology()
         self._global_network.add(self.block_network, no_same_node)
-        self._create_in_world()
-        self.attach_to_world(root_render_np, physics_world)
+
+        if attach_to_world:
+            self._create_in_world()
+            self.attach_to_world(root_render_np, physics_world)
+
         return success
 
     def destruct_block(self, physics_world: PhysicsWorld):
         self._clear_topology()
         self.detach_from_world(physics_world)
+
         self.origin.removeNode()
+        self.origin = None
+
         self.dynamic_nodes.clear()
         self.static_nodes.clear()
         for obj in self._block_objects:
@@ -137,7 +153,7 @@ class BaseBlock(BaseObject, DrivableAreaProperty):
 
     """------------------------------------- For Render and Physics Calculation ---------------------------------- """
 
-    def _create_in_world(self):
+    def _create_in_world(self, skip=False):
         """
         Create NodePath and Geom node to perform both collision detection and render
 
@@ -148,7 +164,12 @@ class BaseBlock(BaseObject, DrivableAreaProperty):
         self.sidewalk_node_path = NodePath(RigidBodyCombiner(self.name + "_sidewalk"))
         self.lane_node_path = NodePath(RigidBodyCombiner(self.name + "_lane"))
         self.lane_vis_node_path = NodePath(RigidBodyCombiner(self.name + "_lane_vis"))
-        self.create_in_world()
+
+        if skip:  # for debug
+            pass
+        else:
+            self.create_in_world()
+
         self.lane_line_node_path.flattenStrong()
         self.lane_line_node_path.node().collect()
 
@@ -172,6 +193,11 @@ class BaseBlock(BaseObject, DrivableAreaProperty):
         self.lane_vis_node_path.reparentTo(self.origin)
 
         self.bounding_box = self.block_network.get_bounding_box()
+
+        self._node_path_list.append(self.sidewalk_node_path)
+        self._node_path_list.append(self.lane_line_node_path)
+        self._node_path_list.append(self.lane_node_path)
+        self._node_path_list.append(self.lane_vis_node_path)
 
     def create_in_world(self):
         """
@@ -228,6 +254,9 @@ class BaseBlock(BaseObject, DrivableAreaProperty):
         body_node.setKinematic(False)
         body_node.setStatic(True)
         body_np = parent_np.attachNewNode(body_node)
+
+        self._node_path_list.append(body_np)
+
         shape = BulletBoxShape(
             Vec3(length / 2, DrivableAreaProperty.LANE_LINE_WIDTH / 2, DrivableAreaProperty.LANE_LINE_GHOST_HEIGHT)
         )
@@ -255,5 +284,15 @@ class BaseBlock(BaseObject, DrivableAreaProperty):
     def destroy(self):
         if self.block_network is not None:
             self.block_network.destroy()
+            if self.block_network.graph is not None:
+                self.block_network.graph.clear()
             self.block_network = None
+        self.PART_IDX = 0
+        self.ROAD_IDX = 0
+        self._respawn_roads.clear()
+        self._global_network = None
         super(BaseBlock, self).destroy()
+
+    def __del__(self):
+        self.destroy()
+        logger.debug("{} is being deleted.".format(type(self)))

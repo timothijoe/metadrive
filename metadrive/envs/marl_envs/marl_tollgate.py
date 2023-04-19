@@ -8,13 +8,13 @@ from metadrive.component.pgblock.tollgate import TollGate
 from metadrive.component.road_network import Road
 from metadrive.constants import TerminationState
 from metadrive.envs.marl_envs.multi_agent_metadrive import MultiAgentMetaDrive
-from metadrive.manager.map_manager import MapManager
+from metadrive.manager.map_manager import PGMapManager
 from metadrive.obs.state_obs import LidarStateObservation, StateObservation
 from metadrive.utils import Config, clip
 
 MATollConfig = dict(
     spawn_roads=[Road(FirstPGBlock.NODE_2, FirstPGBlock.NODE_3), -Road(Merge.node(3, 0, 0), Merge.node(3, 0, 1))],
-    num_agents=24,
+    num_agents=40,
     map_config=dict(exit_length=70, lane_num=3, toll_lane_num=8, toll_length=10),
     top_down_camera_initial_x=125,
     top_down_camera_initial_y=0,
@@ -160,7 +160,7 @@ class MATollGateMap(PGMap):
         self.blocks.append(merge)
 
 
-class MATollGateMapManager(MapManager):
+class MATollGatePGMapManager(PGMapManager):
     def reset(self):
         config = self.engine.global_config
         if len(self.spawned_objects) == 0:
@@ -173,7 +173,7 @@ class MATollGateMapManager(MapManager):
 
 
 class MultiAgentTollgateEnv(MultiAgentMetaDrive):
-    def __init__(self, config):
+    def __init__(self, config=None):
         super(MultiAgentTollgateEnv, self).__init__(config)
         self.stay_time_manager = StayTimeManager()
 
@@ -206,7 +206,7 @@ class MultiAgentTollgateEnv(MultiAgentMetaDrive):
         long_now, lateral_now = current_lane.local_coordinates(vehicle.position)
 
         # reward for lane keeping, without it vehicle can learn to overtake but fail to keep in lane
-        if self.config["use_lateral"]:
+        if self.config["use_lateral_reward"]:
             lateral_factor = clip(1 - 2 * abs(lateral_now) / vehicle.navigation.get_current_lane_width(), 0.0, 1.0)
         else:
             lateral_factor = 1.0
@@ -225,7 +225,7 @@ class MultiAgentTollgateEnv(MultiAgentMetaDrive):
 
         step_info["step_reward"] = reward
 
-        if vehicle.arrive_destination:
+        if self._is_arrive_destination(vehicle):
             reward = +self.config["success_reward"]
         elif self._is_out_of_road(vehicle):
             reward = -self.config["out_of_road_penalty"]
@@ -273,12 +273,12 @@ class MultiAgentTollgateEnv(MultiAgentMetaDrive):
 
     def step(self, actions):
         o, r, d, i = super(MultiAgentTollgateEnv, self).step(actions)
-        self.stay_time_manager.record(self.agent_manager.active_agents, self.episode_steps)
+        self.stay_time_manager.record(self.agent_manager.active_agents, self.episode_step)
         return o, r, d, i
 
     def setup_engine(self):
         super(MultiAgentTollgateEnv, self).setup_engine()
-        self.engine.update_manager("map_manager", MATollGateMapManager())
+        self.engine.update_manager("map_manager", MATollGatePGMapManager())
 
 
 def _draw():

@@ -7,7 +7,7 @@ import numpy as np
 from panda3d.core import PNMImage
 
 from metadrive.component.vehicle.base_vehicle import BaseVehicle
-from metadrive.constants import RENDER_MODE_NONE, DEFAULT_AGENT, REPLAY_DONE
+from metadrive.constants import RENDER_MODE_NONE, DEFAULT_AGENT
 from metadrive.engine.base_engine import BaseEngine
 from metadrive.engine.engine_utils import initialize_engine, close_engine, \
     engine_initialized, set_global_random_seed
@@ -18,7 +18,6 @@ from metadrive.obs.image_obs import ImageStateObservation
 from metadrive.obs.observation_base import ObservationBase
 from metadrive.obs.state_obs import LidarStateObservation
 from metadrive.utils import Config, merge_dicts, get_np_random, concat_step_infos
-from metadrive.utils.utils import auto_termination
 
 BASE_DEFAULT_CONFIG = dict(
 
@@ -31,11 +30,13 @@ BASE_DEFAULT_CONFIG = dict(
     is_multi_agent=False,
     allow_respawn=False,
     delay_done=0,  # How many steps for the agent to stay static at the death place after done.
+    # Whether only return single agent-like observation and action space
+    return_single_space=False,
 
     # ===== Action =====
     manual_control=False,
     controller="keyboard",  # "joystick" or "keyboard"
-    decision_repeat=5,
+    decision_repeat=5, #5
     discrete_action=False,
     discrete_steering_dim=5,
     discrete_throttle_dim=5,
@@ -65,25 +66,36 @@ BASE_DEFAULT_CONFIG = dict(
         random_navi_mark_color=False,
         show_dest_mark=False,
         show_line_to_dest=False,
+        show_line_to_navi_mark=False,
         use_special_color=False,
 
         # ===== use image =====
         image_source="rgb_camera",  # take effect when only when offscreen_render == True
 
         # ===== vehicle spawn and destination =====
+        navigation_module=None,  # a class type for self-defined navigation
         need_navigation=True,
         spawn_lane_index=None,
         spawn_longitude=5.0,
         spawn_lateral=0.0,
         destination=None,
+        spawn_position_heading=None,
 
         # ==== others ====
         overtake_stat=False,  # we usually set to True when evaluation
         action_check=False,
         random_color=False,
+        random_agent_model=False,  # this will be overwritten by env.config["random_agent_model"]
+        # The shape of vehicle are predefined by its class. But in special case (WaymoVehicle) we might want to
+        # set to arbitrary shape.
+        width=None,
+        length=None,
+        height=None,
 
         # ===== vehicle module config =====
-        lidar=dict(num_lasers=240, distance=50, num_others=0, gaussian_noise=0.0, dropout_prob=0.0),
+        lidar=dict(
+            num_lasers=240, distance=50, num_others=0, gaussian_noise=0.0, dropout_prob=0.0, add_others_navi=False
+        ),
         side_detector=dict(num_lasers=0, distance=50, gaussian_noise=0.0, dropout_prob=0.0),
         lane_line_detector=dict(num_lasers=0, distance=20, gaussian_noise=0.0, dropout_prob=0.0),
         show_lidar=False,
@@ -94,7 +106,9 @@ BASE_DEFAULT_CONFIG = dict(
         show_lane_line_detector=False,
 
         # NOTE: rgb_clip will be modified by env level config when initialization
-        rgb_clip=True,
+        rgb_clip=True,  # clip 0-255 to 0-1
+        stack_size=3,  # the number of timesteps for stacking image observation
+        rgb_to_grayscale=False,
         gaussian_noise=0.0,
         dropout_prob=0.0,
     ),
@@ -103,7 +117,7 @@ BASE_DEFAULT_CONFIG = dict(
     target_vehicle_configs={DEFAULT_AGENT: dict(use_special_color=False, spawn_lane_index=None)},
 
     # ===== Engine Core config =====
-    window_size=(1200, 900),  # width, height
+    window_size=(1200, 900),  # or (width, height), if set to None, it will be automatically determined
     physics_world_step_size=2e-2,
     show_fps=True,
     global_light=False,
@@ -121,17 +135,33 @@ BASE_DEFAULT_CONFIG = dict(
     _disable_detector_mask=False,
     # clip rgb to (0, 1)
     rgb_clip=True,
+    # None: unlimited, number: fps
+    force_render_fps=None,
+    # if set to True all objects will be force destroyed when call clear()
+    force_destroy=False,
+    # number of buffering objects for each class.
+    # we will maintain a set of buffers in the engine to store the used objects and can reuse them
+    # when possible. But it is possible that some classes of objects are always forcefully respawn
+    # and thus those used objects are stored in the buffer and never be reused.
+    num_buffering_objects=200,
 
     # ===== Others =====
     # The maximum distance used in PGLOD. Set to None will use the default values.
     max_distance=None,
     # Force to generate objects in the left lane.
     _debug_crash_object=False,
-    record_episode=False,  # when replay_episode is not None ,this option will be useless
-    replay_episode=None,  # set the replay file to enable replay
-    horizon=None,  # The maximum length of each episode. Set to None to remove this constraint
+    horizon=None,  # The maximum length of each environmental episode. Set to None to remove this constraint
+    max_step_per_agent=None,  # The maximum length of each agent episode. Raise max_step termination when reaches.
     show_interface_navi_mark=True,
     show_mouse=True,
+    show_skybox=True,
+    show_terrain=True,
+    show_interface=True,
+
+    # record/replay metadata
+    record_episode=False,  # when replay_episode is not None ,this option will be useless
+    replay_episode=None,  # set the replay file to enable replay
+    only_reset_when_replay=False,  # Scenario will only be initialized, while future trajectories will not be replayed
 )
 
 
@@ -146,6 +176,8 @@ class BaseEnv(gym.Env):
 
     # ===== Intialization =====
     def __init__(self, config: dict = None):
+        if config is None:
+            config = {}
         merged_config = self._merge_extra_config(config)
         global_config = self._post_process_config(merged_config)
         self.config = global_config
@@ -164,14 +196,12 @@ class BaseEnv(gym.Env):
 
         # lazy initialization, create the main vehicle in the lazy_init() func
         self.engine: Optional[BaseEngine] = None
-        self._top_down_renderer = None
-        self.episode_steps = 0
-        # self.current_seed = None
 
         # In MARL envs with respawn mechanism, varying episode lengths might happen.
         self.dones = None
         self.episode_rewards = defaultdict(float)
         self.episode_lengths = defaultdict(int)
+        self.total_steps = 0
 
     def _merge_extra_config(self, config: Union[dict, "Config"]) -> "Config":
         """Check, update, sync and overwrite some config."""
@@ -225,10 +255,10 @@ class BaseEnv(gym.Env):
 
     # ===== Run-time =====
     def step(self, actions: Union[np.ndarray, Dict[AnyStr, np.ndarray]]):
-        self.episode_steps += 1
         actions = self._preprocess_actions(actions)
         engine_info = self._step_simulator(actions)
         o, r, d, i = self._get_step_return(actions, engine_info=engine_info)
+        self.total_steps += 1
         return o, r, d, i
 
     def _preprocess_actions(self, actions: Union[np.ndarray, Dict[AnyStr, np.ndarray]]) \
@@ -283,9 +313,11 @@ class BaseEnv(gym.Env):
         :param text:text to show
         :return: when mode is 'rgb', image array is returned
         """
-        if mode == "top_down":
-            return self._render_topdown(*args, **kwargs)
-        assert self.config["use_render"] or self.engine.mode != RENDER_MODE_NONE, ("render is off now, can not render")
+        if mode in ["top_down", "topdown", "bev", "birdview"]:
+            ret = self._render_topdown(text=text, *args, **kwargs)
+            return ret
+        assert self.config["use_render"] or self.engine.mode != RENDER_MODE_NONE, \
+            ("Panda Renderring is off now, can not render")
         self.engine.render_frame(text)
         if mode != "human" and self.config["offscreen_render"]:
             # fetch img from img stack to be make this func compatible with other render func in RL setting
@@ -326,9 +358,9 @@ class BaseEnv(gym.Env):
             self._top_down_renderer.reset(self.current_map)
 
         self.dones = {agent_id: False for agent_id in self.vehicles.keys()}
-        self.episode_steps = 0
         self.episode_rewards = defaultdict(float)
         self.episode_lengths = defaultdict(int)
+
         assert (len(self.vehicles) == self.num_agents) or (self.num_agents == -1)
 
         return self._get_reset_return()
@@ -349,27 +381,21 @@ class BaseEnv(gym.Env):
         reward_infos = {}
         rewards = {}
         for v_id, v in self.vehicles.items():
-            o = self.observations[v_id].observe(v)
-            obses[v_id] = o
-            done_function_result, done_infos[v_id] = self.done_function(v_id)
             rewards[v_id], reward_infos[v_id] = self.reward_function(v_id)
+            done_function_result, done_infos[v_id] = self.done_function(v_id)
             _, cost_infos[v_id] = self.cost_function(v_id)
             done = done_function_result or self.dones[v_id]
             self.dones[v_id] = done
+            o = self.observations[v_id].observe(v)
+            obses[v_id] = o
 
-        should_done = engine_info.get(REPLAY_DONE, False
-                                      ) or (self.config["horizon"] and self.episode_steps >= self.config["horizon"])
-        termination_infos = self.for_each_vehicle(auto_termination, should_done)
+        step_infos = concat_step_infos([engine_info, done_infos, reward_infos, cost_infos])
 
-        step_infos = concat_step_infos([
-            engine_info,
-            done_infos,
-            reward_infos,
-            cost_infos,
-            termination_infos,
-        ])
-
-        if should_done:
+        # For extreme case only. Force to terminate all vehicles if the environmental step exceeds 5 times horizon.
+        should_external_done = False
+        if self.config["horizon"] is not None:
+            should_external_done = self.episode_step > 5 * self.config["horizon"]
+        if should_external_done:
             for k in self.dones:
                 self.dones[k] = True
 
@@ -379,6 +405,7 @@ class BaseEnv(gym.Env):
             step_infos[v_id]["episode_reward"] = self.episode_rewards[v_id]
             self.episode_lengths[v_id] += 1
             step_infos[v_id]["episode_length"] = self.episode_lengths[v_id]
+
         if not self.is_multi_agent:
             return self._wrap_as_single_agent(obses), self._wrap_as_single_agent(rewards), \
                    self._wrap_as_single_agent(dones), self._wrap_as_single_agent(step_infos)
@@ -388,8 +415,6 @@ class BaseEnv(gym.Env):
     def close(self):
         if self.engine is not None:
             close_engine()
-        if self._top_down_renderer is not None:
-            self._top_down_renderer.close()
 
     def force_close(self):
         print("Closing environment ... Please wait")
@@ -448,7 +473,7 @@ class BaseEnv(gym.Env):
         :return: Dict
         """
         ret = self.agent_manager.get_observation_spaces()
-        if not self.is_multi_agent:
+        if (not self.is_multi_agent) or self.config["return_single_space"]:
             return next(iter(ret.values()))
         else:
             return gym.spaces.Dict(ret)
@@ -460,7 +485,7 @@ class BaseEnv(gym.Env):
         :return: Dict
         """
         ret = self.agent_manager.get_action_spaces()
-        if not self.is_multi_agent:
+        if (not self.is_multi_agent) or self.config["return_single_space"]:
             return next(iter(ret.values()))
         else:
             return gym.spaces.Dict(ret)
@@ -472,6 +497,16 @@ class BaseEnv(gym.Env):
         :return: Dict[agent_id:vehicle]
         """
         return self.agent_manager.active_agents
+
+    @property
+    def vehicles_including_just_terminated(self):
+        """
+        Return all vehicles that occupy some space in current environments
+        :return: Dict[agent_id:vehicle]
+        """
+        ret = self.agent_manager.active_agents
+        ret.update(self.agent_manager.just_terminated_agents)
+        return ret
 
     def setup_engine(self):
         """
@@ -495,11 +530,8 @@ class BaseEnv(gym.Env):
     def maps(self):
         return self.engine.map_manager.maps
 
-    def _render_topdown(self, *args, **kwargs):
-        if self._top_down_renderer is None:
-            from metadrive.obs.top_down_renderer import TopDownRenderer
-            self._top_down_renderer = TopDownRenderer(*args, **kwargs)
-        return self._top_down_renderer.render()
+    def _render_topdown(self, text, *args, **kwargs):
+        return self.engine.render_topdown(text, *args, **kwargs)
 
     @property
     def main_camera(self):
@@ -508,3 +540,11 @@ class BaseEnv(gym.Env):
     @property
     def current_track_vehicle(self):
         return self.engine.current_track_vehicle
+
+    @property
+    def _top_down_renderer(self):
+        return self.engine._top_down_renderer
+
+    @property
+    def episode_step(self):
+        return self.engine.episode_step if self.engine is not None else 0

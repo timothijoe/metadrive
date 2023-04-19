@@ -1,69 +1,135 @@
-import numpy as np
+from metadrive.component.lane.waypoint_lane import WayPointLane
 from metadrive.component.map.waymo_map import WaymoMap
 from metadrive.constants import DEFAULT_AGENT
 from metadrive.manager.base_manager import BaseManager
 from metadrive.manager.waymo_traffic_manager import WaymoTrafficManager
-from metadrive.utils.scene_utils import ray_localization
+from metadrive.utils.waymo_utils.data_buffer import DataBuffer
 
 
 class WaymoMapManager(BaseManager):
     PRIORITY = 0  # Map update has the most high priority
 
-    def __init__(self):
+    def __init__(self, store_map=False, store_map_buffer_size=200):
         super(WaymoMapManager, self).__init__()
         self.current_map = None
         self.map_num = self.engine.global_config["case_num"]
-        self.maps = {_seed: None for _seed in range(0, self.map_num)}
-        # we put the route-find funcrion here
+        self.start = self.engine.global_config["start_case_index"]
+
+        # we put the route searching function here
         self.sdc_start = None
-        self.sdc_end = None
         self.sdc_destinations = []
+        self.sdc_dest_point = None
+        self.current_sdc_route = None
+
+        self.store_map = store_map
+        self.store_map_buffer = DataBuffer(store_data_buffer_size=store_map_buffer_size if self.store_map else None)
 
     def reset(self):
         seed = self.engine.global_random_seed
-        map_config = self.engine.data_manager.get_case(seed)
-        if self.maps[seed] is None:
-            map = self.spawn_object(WaymoMap, waymo_data=map_config)
-            if self.engine.global_config["store_map"]:
-                self.maps[seed] = map
-        else:
-            map = self.maps[seed]
-        self.load_map(map)
-        self.update_route(map_config)
+        assert self.start <= seed < self.start + self.map_num
 
-    def update_route(self, data):
-        init_state = WaymoTrafficManager.parse_vehicle_state(data["tracks"][data["sdc_index"]]["state"], 1)
-        last_state = WaymoTrafficManager.parse_vehicle_state(data["tracks"][data["sdc_index"]]["state"], -1)
+        # inner psutil function
+        # def process_memory():
+        #     import psutil
+        #     import os
+        #     process = psutil.Process(os.getpid())
+        #     mem_info = process.memory_info()
+        #     return mem_info.rss
+        #
+        # cm = process_memory()
+
+        if seed in self.store_map_buffer:
+            new_map = self.store_map_buffer[seed]
+        else:
+
+            # lm = process_memory()
+            # print("{}:  Reset! Mem Change {:.3f}MB".format(1, (lm - cm) / 1e6))
+            # cm = lm
+
+            self.store_map_buffer.clear_if_necessary()
+
+            # lm = process_memory()
+            # print("{}:  Reset! Mem Change {:.3f}MB".format(2, (lm - cm) / 1e6))
+            # cm = lm
+
+            new_map = WaymoMap(map_index=seed)
+
+            # lm = process_memory()
+            # print("{}:  Reset! Mem Change {:.3f}MB".format(3, (lm - cm) / 1e6))
+            # cm = lm
+
+            self.store_map_buffer[seed] = new_map
+
+            # lm = process_memory()
+            # print("{}:  Reset! Mem Change {:.3f}MB".format(4, (lm - cm) / 1e6))
+            # cm = lm
+
+        self.load_map(new_map)
+
+        # lm = process_memory()
+        # print("{}:  Reset! Mem Change {:.3f}MB".format(5, (lm - cm) / 1e6))
+        # cm = lm
+
+        self.update_route()
+
+        # lm = process_memory()
+        # print("{}:  Reset! Mem Change {:.3f}MB".format(6, (lm - cm) / 1e6))
+        # cm = lm
+
+    def update_route(self):
+        """
+        # TODO(LQY) Modify this part, if we finally deceide to use TrajNavi
+        """
+        data = self.engine.data_manager.get_case(self.engine.global_random_seed)
+
+        sdc_traj = WaymoTrafficManager.parse_full_trajectory(data["tracks"][data["sdc_index"]]["state"])
+        self.current_sdc_route = WayPointLane(sdc_traj, 1.5)
+        init_state = WaymoTrafficManager.parse_vehicle_state(
+            data["tracks"][data["sdc_index"]]["state"],
+            self.engine.global_config["traj_start_index"],
+            check_last_state=False,
+        )
+        last_state = WaymoTrafficManager.parse_vehicle_state(
+            data["tracks"][data["sdc_index"]]["state"],
+            self.engine.global_config["traj_end_index"],
+            check_last_state=True
+        )
         init_position = init_state["position"]
         init_yaw = init_state["heading"]
         last_position = last_state["position"]
         last_yaw = last_state["heading"]
-        start_lanes = ray_localization(
-            [np.cos(init_yaw), np.sin(init_yaw)],
-            init_position,
-            self.engine,
-            return_all_result=True,
-            use_heading_filter=False
-        )
-        end_lanes = ray_localization(
-            [np.cos(last_yaw), np.sin(last_yaw)],
-            last_position,
-            self.engine,
-            return_all_result=True,
-            use_heading_filter=False
-        )
 
-        self.sdc_start, self.sdc_end = self.filter_path(start_lanes, end_lanes)
-        lane = self.current_map.road_network.get_lane(self.sdc_end)
-        self.sdc_destinations = [self.sdc_end]
-        if len(lane.left_lanes) > 0:
-            self.sdc_destinations += [lane["id"] for lane in lane.left_lanes]
-        if len(lane.right_lanes) > 0:
-            self.sdc_destinations += [lane["id"] for lane in lane.right_lanes]
+        # TODO(LQY):
+        #  The Following part is for EdgeNetworkNavi
+        #  Consider removing them if we finally choose to use TrajectoryNavi
+        # start_lanes = ray_localization(
+        #     [np.cos(init_yaw), np.sin(init_yaw)],
+        #     init_position,
+        #     self.engine,
+        #     return_all_result=True,
+        #     use_heading_filter=False
+        # )
+        # end_lanes = ray_localization(
+        #     [np.cos(last_yaw), np.sin(last_yaw)],
+        #     last_position,
+        #     self.engine,
+        #     return_all_result=True,
+        #     use_heading_filter=False
+        # )
+        #
+        # self.sdc_start, sdc_end = self.filter_path(start_lanes, end_lanes)
+        # initial_long, initial_lat = self.current_map.road_network. \
+        #     get_lane(self.sdc_start).local_coordinates(init_position)
+
+        self.sdc_dest_point = last_position
+        # self.sdc_destinations = [sdc_end]
+        # lane = self.current_map.road_network.get_lane(sdc_end)
+        # if len(lane.left_lanes) > 0:
+        #     self.sdc_destinations += [lane["id"] for lane in lane.left_lanes]
+        # if len(lane.right_lanes) > 0:
+        #     self.sdc_destinations += [lane["id"] for lane in lane.right_lanes]
         self.engine.global_config.update(
-            dict(
-                target_vehicle_configs={DEFAULT_AGENT: dict(spawn_lane_index=self.sdc_start, destination=self.sdc_end)}
-            )
+            dict(target_vehicle_configs={DEFAULT_AGENT: dict(spawn_position_heading=(init_position, init_yaw))})
         )
 
     def filter_path(self, start_lanes, end_lanes):
@@ -75,9 +141,10 @@ class WaymoMapManager(BaseManager):
         return None
 
     def spawn_object(self, object_class, *args, **kwargs):
-        map = self.engine.spawn_object(object_class, auto_fill_random_seed=False, *args, **kwargs)
-        self.spawned_objects[map.id] = map
-        return map
+        raise ValueError("Please create WaymoMap instance directly without calling spawn_object function.")
+        # map = self.engine.spawn_object(object_class, auto_fill_random_seed=False, *args, **kwargs)
+        # self.spawned_objects[map.id] = map
+        # return map
 
     def load_map(self, map):
         map.attach_to_world()
@@ -86,16 +153,33 @@ class WaymoMapManager(BaseManager):
     def unload_map(self, map):
         map.detach_from_world()
         self.current_map = None
-        if not self.engine.global_config["store_map"]:
-            self.clear_objects([map.id], force_destroy=True)
-            assert len(self.spawned_objects) == 0
+        # if not self.engine.global_config["store_map"]:
+        #     self.clear_objects([map.id])
+        #     assert len(self.spawned_objects) == 0
 
     def destroy(self):
         self.maps = None
         self.current_map = None
+
+        self.sdc_start = None
+        self.sdc_destinations = []
+        self.sdc_dest_point = None
+        self.current_sdc_route = None
+
         super(WaymoMapManager, self).destroy()
 
     def before_reset(self):
         # remove map from world before adding
         if self.current_map is not None:
             self.unload_map(self.current_map)
+
+        self.sdc_start = None
+        self.sdc_destinations = []
+        self.sdc_dest_point = None
+        self.current_sdc_route = None
+
+    def clear_objects(self, *args, **kwargs):
+        """
+        As Map instance should not be recycled, we will forcefully destroy useless map instances.
+        """
+        return super(WaymoMapManager, self).clear_objects(force_destroy=True, *args, **kwargs)

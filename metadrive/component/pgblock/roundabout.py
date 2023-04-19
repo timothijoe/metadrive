@@ -1,10 +1,9 @@
 import math
-
 import numpy as np
 
+from metadrive.component.lane.straight_lane import StraightLane
 from metadrive.component.pgblock.create_pg_block_utils import CreateAdverseRoad, CreateRoadFrom, create_bend_straight
 from metadrive.component.pgblock.pg_block import PGBlock, PGBlockSocket
-from metadrive.component.lane.straight_lane import StraightLane
 from metadrive.component.road_network import Road
 from metadrive.constants import LineType
 from metadrive.utils.space import ParameterSpace, Parameter, BlockParameterSpace
@@ -19,7 +18,7 @@ class Roundabout(PGBlock):
     SOCKET_NUM = 3
     RADIUS_IN = 20
     ANGLE = 60
-    EXIT_PART_LENGTH = 30
+    EXIT_PART_LENGTH = 35
 
     def __init__(self, *args, **kwargs):
         super(Roundabout, self).__init__(*args, **kwargs)

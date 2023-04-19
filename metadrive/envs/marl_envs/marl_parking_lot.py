@@ -1,15 +1,23 @@
 import copy
 
+import numpy as np
+from panda3d.bullet import BulletBoxShape, BulletGhostNode
+from panda3d.core import Vec3
+
+from metadrive.component.lane.straight_lane import StraightLane
 from metadrive.component.map.pg_map import PGMap
 from metadrive.component.pgblock.first_block import FirstPGBlock
 from metadrive.component.pgblock.parking_lot import ParkingLot
 from metadrive.component.pgblock.t_intersection import TInterSection
 from metadrive.component.road_network import Road
-from metadrive.envs.marl_envs.marl_inout_roundabout import LidarStateObservationMARound
+from metadrive.constants import BodyName
+from metadrive.constants import CollisionGroup
+from metadrive.engine.engine_utils import get_engine
 from metadrive.envs.marl_envs.multi_agent_metadrive import MultiAgentMetaDrive
-from metadrive.manager.map_manager import MapManager
-from metadrive.obs.observation_base import ObservationBase
+from metadrive.manager.map_manager import PGMapManager
 from metadrive.utils import get_np_random, Config
+from metadrive.utils.coordinates_shift import panda_position, panda_heading
+from metadrive.utils.scene_utils import rect_region_detection
 
 MAParkingLotConfig = dict(
     in_spawn_roads=[
@@ -54,14 +62,12 @@ class ParkingLotSpawnManager(SpawnManager):
             self._parking_spaces = self.engine.map_manager.current_map.parking_space
             self.v_dest_pair = {}
             self.parking_space_available = set(copy.deepcopy(self._parking_spaces))
+        assert len(self.parking_space_available) > 0
         parking_space_idx = self.np_random.choice([i for i in range(len(self.parking_space_available))])
         parking_space = list(self.parking_space_available)[parking_space_idx]
         self.parking_space_available.remove(parking_space)
         self.v_dest_pair[v_id] = parking_space
         return parking_space
-
-    def add_available_parking_space(self, parking_space: Road):
-        self.parking_space_available.add(parking_space)
 
     def after_vehicle_done(self, v_id):
         if v_id in self.v_dest_pair:
@@ -83,6 +89,57 @@ class ParkingLotSpawnManager(SpawnManager):
             end_road = -self.np_random.choice(end_roads)  # Use negative road!
         vehicle_config["destination"] = end_road.end_node
         return vehicle_config
+
+    def get_available_respawn_places(self, map, randomize=False):
+        """
+        In each episode, we allow the vehicles to respawn at the start of road, randomize will give vehicles a random
+        position in the respawn region
+        """
+        engine = get_engine()
+        ret = {}
+        for bid, bp in self.safe_spawn_places.items():
+            if bid in self.spawn_places_used:
+                continue
+            if "P" not in bid and len(self.parking_space_available) == 0:
+                # If no parking space, vehicles will never be spawned.
+                continue
+            # save time calculate once
+            if not bp.get("spawn_point_position", False):
+                lane = map.road_network.get_lane(bp["config"]["spawn_lane_index"])
+                assert isinstance(lane, StraightLane), "Now we don't support respawn on circular lane"
+                long = self.RESPAWN_REGION_LONGITUDE / 2
+                spawn_point_position = lane.position(longitudinal=long, lateral=0)
+                bp.force_update(
+                    {
+                        "spawn_point_heading": np.rad2deg(lane.heading_theta_at(long)),
+                        "spawn_point_position": (spawn_point_position[0], spawn_point_position[1])
+                    }
+                )
+
+            spawn_point_position = bp["spawn_point_position"]
+            lane_heading = bp["spawn_point_heading"]
+            result = rect_region_detection(
+                engine, spawn_point_position, lane_heading, self.RESPAWN_REGION_LONGITUDE, self.RESPAWN_REGION_LATERAL,
+                CollisionGroup.Vehicle
+            )
+            if (engine.global_config["debug"] or engine.global_config["debug_physics_world"]) \
+                    and bp.get("need_debug", True):
+                shape = BulletBoxShape(Vec3(self.RESPAWN_REGION_LONGITUDE / 2, self.RESPAWN_REGION_LATERAL / 2, 1))
+                vis_body = engine.render.attach_new_node(BulletGhostNode("debug"))
+                vis_body.node().addShape(shape)
+                vis_body.setH(panda_heading(lane_heading))
+                vis_body.setPos(panda_position(spawn_point_position, z=2))
+                engine.physics_world.dynamic_world.attach(vis_body.node())
+                vis_body.node().setIntoCollideMask(CollisionGroup.AllOff)
+                bp.force_set("need_debug", False)
+
+            if not result.hasHit() or result.node.getName() != BodyName.Vehicle:
+                new_bp = copy.deepcopy(bp).get_dict()
+                if randomize:
+                    new_bp["config"] = self._randomize_position_in_slot(new_bp["config"])
+                ret[bid] = new_bp
+                self.spawn_places_used.append(bid)
+        return ret
 
 
 class MAParkingLotMap(PGMap):
@@ -128,7 +185,7 @@ class MAParkingLotMap(PGMap):
         self.blocks.append(last_block)
 
 
-class MAParkinglotMapManager(MapManager):
+class MAParkinglotPGMapManager(PGMapManager):
     def reset(self):
         config = self.engine.global_config
         if len(self.spawned_objects) == 0:
@@ -192,27 +249,22 @@ class MultiAgentParkingLotEnv(MultiAgentMetaDrive):
                     filter_ret[id] = config
 
         # ===== same as super() =====
-        safe_places_dict = filter_ret
-        if len(safe_places_dict) == 0 or not self.agent_manager.allow_respawn:
-            # No more run, just wait!
-            return None, None
-        assert len(safe_places_dict) > 0
-        bp_index = get_np_random(self._DEBUG_RANDOM_SEED).choice(list(safe_places_dict.keys()), 1)[0]
-        new_spawn_place = safe_places_dict[bp_index]
+        if len(safe_places_dict) == 0:
+            return None, None, None
+        born_place_index = get_np_random(self._DEBUG_RANDOM_SEED).choice(list(safe_places_dict.keys()), 1)[0]
+        new_spawn_place = safe_places_dict[born_place_index]
 
-        new_agent_id, vehicle = self.agent_manager.propose_new_vehicle()
+        new_agent_id, vehicle, step_info = self.agent_manager.propose_new_vehicle()
         new_spawn_place_config = new_spawn_place["config"]
         new_spawn_place_config = self.engine.spawn_manager.update_destination_for(new_agent_id, new_spawn_place_config)
         vehicle.config.update(new_spawn_place_config)
         vehicle.reset()
-        vehicle.after_step()
+        after_step_info = vehicle.after_step()
+        step_info.update(after_step_info)
         self.dones[new_agent_id] = False  # Put it in the internal dead-tracking dict.
 
         new_obs = self.observations[new_agent_id].observe(vehicle)
-        return new_agent_id, new_obs
-
-    def get_single_observation(self, vehicle_config: "Config") -> "ObservationBase":
-        return LidarStateObservationMARound(vehicle_config)
+        return new_agent_id, new_obs, step_info
 
     def done_function(self, vehicle_id):
         done, info = super(MultiAgentParkingLotEnv, self).done_function(vehicle_id)
@@ -229,7 +281,7 @@ class MultiAgentParkingLotEnv(MultiAgentMetaDrive):
     def setup_engine(self):
         super(MultiAgentParkingLotEnv, self).setup_engine()
         self.engine.update_manager("spawn_manager", ParkingLotSpawnManager())
-        self.engine.update_manager("map_manager", MAParkinglotMapManager())
+        self.engine.update_manager("map_manager", MAParkinglotPGMapManager())
 
 
 def _draw():
@@ -352,11 +404,12 @@ def _vis():
                 "show_lidar": False,
             },
             "debug_static_world": True,
+            "debug_physics_world": True,
             "global_light": True,
             "use_render": True,
             "debug": True,
             "manual_control": True,
-            "num_agents": 8,
+            "num_agents": 7,
             "delay_done": 10,
             # "parking_space_num": 4
         }

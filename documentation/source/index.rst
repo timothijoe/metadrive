@@ -21,7 +21,7 @@ MetaDrive is an efficient and compositional driving simulator with the following
 
 This documentation brings you the information on installation, usages and more of MetaDrive!
 
-You can also visit the `GitHub repo <https://github.com/decisionforce/metadrive>`_ of MetaDrive.
+You can also visit the `GitHub repo <https://github.com/metadriverse/metadrive>`_ of MetaDrive.
 Please feel free to contact us if you have any suggestions or ideas!
 
 
@@ -55,6 +55,15 @@ Please feel free to contact us if you have any suggestions or ideas!
 
    concept.rst
    development.rst
+   policy.rst
+
+
+.. toctree::
+   :hidden:
+   :maxdepth: 2
+   :caption: Issues
+
+   known_issues.rst
 
 
 .. raw:: html
@@ -101,6 +110,17 @@ Relevant Projects
     [<a href="https://github.com/decisionforce/EGPO" target="_blank">Code</a>]
     [<a href="https://decisionforce.github.io/EGPO/" target="_blank">Webpage</a>]
     [<a href="https://decisionforce.github.io/EGPO/images/egpo_poster.png" target="_blank">Poster</a>]
+
+    <br><br>
+    <b>
+        Efficient Learning of Safe Driving Policy via Human-AI Copilot Optimization
+    </b> <br>
+    Quanyi Li*, Zhenghao Peng*, Bolei Zhou
+    <br>
+    <i>ICLR 2022</i><br>
+    [<a href="https://arxiv.org/pdf/2202.10341.pdf" target="_blank">Paper</a>]
+    [<a href="https://github.com/decisionforce/HACO" target="_blank">Code</a>]
+    [<a href="https://decisionforce.github.io/HACO" target="_blank">Webpage</a>]
 
     <br><br>
 

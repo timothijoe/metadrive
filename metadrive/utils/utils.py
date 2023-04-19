@@ -1,17 +1,20 @@
 import copy
+import datetime
 import logging
 import os
 import sys
 
 from panda3d.bullet import BulletBodyNode
 
-from metadrive.constants import TerminationState
-
 
 def import_pygame():
     os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = "hide"
     import pygame
     return pygame
+
+
+def get_time_str():
+    return datetime.datetime.now().strftime("%y%m%d-%H%M%S")
 
 
 def setup_logger(debug=False):
@@ -37,7 +40,7 @@ def recursive_equal(data1, data2, need_assert=False):
             return False
         ret = []
         for k in data1:
-            ret.append(recursive_equal(data1[k], data2[k]))
+            ret.append(recursive_equal(data1[k], data2[k], need_assert=need_assert))
         return all(ret)
 
     elif isinstance(data1, list):
@@ -49,7 +52,7 @@ def recursive_equal(data1, data2, need_assert=False):
             return False
         ret = []
         for i in range(len(data1)):
-            ret.append(recursive_equal(data1[i], data2[i]))
+            ret.append(recursive_equal(data1[i], data2[i], need_assert=need_assert))
         return all(ret)
 
     else:
@@ -168,7 +171,3 @@ def get_object_from_node(node: BulletBodyNode):
         return get_object(ret)[ret]
     else:
         return ret
-
-
-def auto_termination(vehicle, should_done):
-    return {TerminationState.MAX_STEP: True if should_done else False}

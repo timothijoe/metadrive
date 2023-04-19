@@ -1,21 +1,22 @@
-import math
 from typing import List, TYPE_CHECKING, Tuple, Union
 
+import math
 import numpy as np
+from panda3d.bullet import BulletBoxShape, BulletCylinderShape, ZUp
+from panda3d.core import TransformState
+from panda3d.core import Vec3
+
 from metadrive.component.lane.circular_lane import CircularLane
 from metadrive.component.lane.metadrive_lane import MetaDriveLane
-from metadrive.component.lane.waypoint_lane import WayPointLane
 from metadrive.constants import CollisionGroup
 from metadrive.constants import Decoration, BodyName
 from metadrive.engine.core.engine_core import EngineCore
 from metadrive.engine.physics_node import BaseRigidBodyNode
 from metadrive.utils.coordinates_shift import panda_heading
 from metadrive.utils.coordinates_shift import panda_position
+from metadrive.utils.interpolating_line import InterpolatingLine
 from metadrive.utils.math_utils import get_points_bounding_box, norm
 from metadrive.utils.utils import get_object_from_node
-from panda3d.bullet import BulletBoxShape, BulletCylinderShape, ZUp
-from panda3d.core import TransformState
-from panda3d.core import Vec3
 
 if TYPE_CHECKING:
     from metadrive.component.pgblock.pg_block import PGBlockSocket
@@ -81,12 +82,12 @@ def get_lanes_bounding_box(lanes, extra_lateral=3) -> Tuple:
         line_points = get_curve_contour(lanes, extra_lateral) if isinstance(lanes[0], CircularLane) \
             else get_straight_contour(lanes, extra_lateral)
     else:
-        line_points = get_waypoint_countour(lanes)
+        line_points = get_interpolating_lane_countour(lanes)
     return get_points_bounding_box(line_points)
 
 
-def get_waypoint_countour(lanes):
-    assert isinstance(lanes[0], WayPointLane)
+def get_interpolating_lane_countour(lanes):
+    assert isinstance(lanes[0], InterpolatingLine)
     ret = []
     for lane in lanes:
         for seg in lane.segment_property:
@@ -152,7 +153,8 @@ def ray_localization(
     position: tuple,
     engine: EngineCore,
     return_all_result=False,
-    use_heading_filter=True
+    use_heading_filter=True,
+    return_on_lane=False,
 ) -> Union[List[Tuple], Tuple]:
     """
     Get the index of the lane closest to a physx_world position.
@@ -163,6 +165,7 @@ def ray_localization(
     :param return_all_result: return a list instead of the lane with min L1 distance
     :return: list(closest lane) or closest lane.
     """
+    on_lane = False
     results = engine.physics_world.static_world.rayTestAll(
         panda_position(position, 1.0), panda_position(position, -1.0)
     )
@@ -170,6 +173,7 @@ def ray_localization(
     if results.hasHits():
         for res in results.getHits():
             if res.getNode().getName() == BodyName.Lane:
+                on_lane = True
                 lane = get_object_from_node(res.getNode())
                 long, _ = lane.local_coordinates(position)
                 lane_heading = lane.heading_theta_at(long)
@@ -193,14 +197,14 @@ def ray_localization(
             for lane, index, dist in lane_index_dist:
                 ret.append((lane, index, dist))
         sorted(ret, key=lambda k: k[2])
-        return ret
+        return (ret, on_lane) if return_on_lane else ret
     else:
         if len(lane_index_dist) > 0:
             ret_index = np.argmin([d for _, _, d in lane_index_dist])
             lane, index, dist = lane_index_dist[ret_index]
         else:
             lane, index, dist = None, None, None
-        return lane, index
+        return (lane, index) if not return_on_lane else (lane, index, on_lane)
 
 
 def rect_region_detection(

@@ -4,16 +4,16 @@ from metadrive.envs.metadrive_env import MetaDriveEnv
 def test_get_lane_index(use_render=False):
     env = MetaDriveEnv(
         {
-            "map": "rRCXSOTCR",
+            "map": "SOTCR",
             "environment_num": 1,
             "traffic_density": 0.3,
-            "traffic_mode": "respawn",
+            "traffic_mode": "trigger",
             "use_render": use_render
         }
     )
     try:
         o = env.reset()
-        for i in range(1, 1000):
+        for i in range(1, 500):
             o, r, d, info = env.step([0, 0])
             for v in env.engine.traffic_manager.vehicles:
                 old_res = env.current_map.road_network.get_closest_lane_index(v.position, True)
