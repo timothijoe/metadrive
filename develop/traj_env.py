@@ -12,10 +12,13 @@ from metadrive.constants import DEFAULT_AGENT, TerminationState
 from metadrive.envs.base_env import BaseEnv
 from metadrive.manager.traffic_manager import TrafficMode
 from metadrive.utils import clip, Config
-
+from develop.engine_utils import initialize_engine, close_engine, \
+    engine_initialized, set_global_random_seed, MacroBaseEngine, get_engine
 from develop.traj_decoder import VaeDecoder
 import torch 
 from typing import Union, Dict, AnyStr, Optional, Tuple, Callable
+from metadrive.utils import Config, merge_dicts, get_np_random, concat_step_infos
+from develop.agent_manager_utils import MacroAgentManager
 
 METADRIVE_DEFAULT_CONFIG = dict(
     # ===== Generalization =====
@@ -132,16 +135,17 @@ class MetaDriveTrajEnv(BaseEnv):
 
         actions = self._preprocess_actions(actions)  # preprocess environment input
         zt_actions = self._preprocess_macro_actions(actions)
-        engine_info = self._step_simulator(actions)  # step the simulation
-        zt_engine_info = self._step_macro_simulator(zt_actions)  # step the simulation
+        #engine_info = self._step_simulator(actions)  # step the simulation
+        engine_info = self._step_macro_simulator(zt_actions)  # step the simulation
         while self.in_stop:
             self.engine.taskMgr.step()  # pause simulation
         return self._get_step_return(actions, engine_info=engine_info)  # collect observation, reward, termination
 
+    @property
+    def engine(self):
+        return get_engine()
 
     def _step_macro_simulator(self, actions):
-        
-        
         simulation_frequency = 10 # self.config['seq_traj_len']
         policy_frequency = 1
         frames = int(simulation_frequency / policy_frequency)
@@ -151,15 +155,6 @@ class MetaDriveTrajEnv(BaseEnv):
             scene_manager_before_step_infos = self.engine.before_step_macro(frame, wps)
             self.engine.step()
             scene_manager_after_step_infos = self.engine.after_step()
-        
-        
-        # prepare for stepping the simulation
-        scene_manager_before_step_infos = self.engine.before_step(actions)
-        # step all entities and the simulator
-        self.engine.step(self.config["decision_repeat"])
-        # update states, if restore from episode data, position and heading will be force set in update_state() function
-        scene_manager_after_step_infos = self.engine.after_step()
-
         # Note that we use shallow update for info dict in this function! This will accelerate system.
         return merge_dicts(
             scene_manager_after_step_infos, scene_manager_before_step_infos, allow_new_keys=True, without_copy=True
@@ -199,6 +194,28 @@ class MetaDriveTrajEnv(BaseEnv):
                 # will still be computed. We just filter it out here.
                 actions = {v_id: actions[v_id] for v_id in self.agents.keys()}
         return actions
+    def _get_agent_manager(self):
+        return MacroAgentManager(init_observations=self._get_observations())
+
+    def lazy_init(self):
+        """
+        Perform lazy initialization for the environment. This function ensures the engine and its components
+        are only initialized once during runtime. The initialized variables will persist until `close_env` is called.
+
+        :return: None
+        """
+        if engine_initialized():
+            return
+
+        # Initialize the engine with the provided configuration
+        initialize_engine(self.config)
+
+        # Setup the engine and its modules
+        self.setup_engine()
+
+        # Perform additional optional initialization steps
+        self._after_lazy_init()
+
 
     def _post_process_config(self, config):
         config = super(MetaDriveTrajEnv, self)._post_process_config(config)
