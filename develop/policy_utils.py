@@ -40,10 +40,10 @@ class MacroTrajPolicy(IDMPolicy):
         return wp_w_list
 
     def act(self, *args, **kwargs):
-        if (self.control_object.arrive_destination and hasattr(self.control_object, 'macro_succ')):
-            self.control_object.macro_succ = True
-        if (self.control_object.crash_vehicle and hasattr(self.control_object, 'crash_vehicle')):
-            self.control_object.macro_crash = True
+        # if (self.control_object.arrive_destination and hasattr(self.control_object, 'macro_succ')):
+        #     self.control_object.macro_succ = True
+        # if (self.control_object.crash_vehicle and hasattr(self.control_object, 'crash_vehicle')):
+        #     self.control_object.macro_crash = True
         frame = args[1]
         wp_list = args[2]
         ego_vehicle = self.control_object
