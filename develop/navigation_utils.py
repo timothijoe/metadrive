@@ -54,7 +54,7 @@ class HRLNodeNavigation(NodeNetworkNavigation):
     def panda_position(self, position, z = 0.0):
         if len(position) == 3:
             z = position[2]
-        return Vec3(position[0], -position[1], z)
+        return Vec3(position[0], position[1], z)
 
     def _initialize_trajectories(self):
         """
